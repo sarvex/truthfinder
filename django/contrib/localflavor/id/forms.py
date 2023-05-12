@@ -44,7 +44,7 @@ class IDPostCodeField(Field):
         if value[0] == '1' and value[4] != '0':
             raise ValidationError(self.error_messages['invalid'])
 
-        return u'%s' % (value, )
+        return f'{value}'
 
 
 class IDProvinceSelect(Select):
@@ -150,10 +150,8 @@ class IDLicensePlateField(Field):
                 raise ValidationError(self.error_messages['invalid'])
             if len(number) == 5 and not (12 <= int(suffix) <= 124):
                 raise ValidationError(self.error_messages['invalid'])
-        else:
-            # suffix must be non-numeric
-            if suffix is not None and re.match(r'^[A-Z]{,3}$', suffix) is None:
-                raise ValidationError(self.error_messages['invalid'])
+        elif suffix is not None and re.match(r'^[A-Z]{,3}$', suffix) is None:
+            raise ValidationError(self.error_messages['invalid'])
 
         return plate_number
 
@@ -188,10 +186,7 @@ class IDNationalIdentityNumberField(Field):
                 t1 = (int(year), int(month), int(day), 0, 0, 0, 0, 0, -1)
                 d = time.mktime(t1)
                 t2 = time.localtime(d)
-                if t1[:3] != t2[:3]:
-                    return False
-                else:
-                    return True
+                return t1[:3] == t2[:3]
             except (OverflowError, ValueError):
                 return False
 
@@ -200,12 +195,12 @@ class IDNationalIdentityNumberField(Field):
         day = int(value[6:8])
         current_year = time.localtime().tm_year
         if year < int(str(current_year)[-2:]):
-            if not valid_nik_date(2000 + int(year), month, day):
+            if not valid_nik_date(2000 + year, month, day):
                 raise ValidationError(self.error_messages['invalid'])
-        elif not valid_nik_date(1900 + int(year), month, day):
+        elif not valid_nik_date(1900 + year, month, day):
             raise ValidationError(self.error_messages['invalid'])
 
         if value[:6] == '000000' or value[12:] == '0000':
             raise ValidationError(self.error_messages['invalid'])
 
-        return '%s.%s.%s.%s' % (value[:2], value[2:6], value[6:12], value[12:])
+        return f'{value[:2]}.{value[2:6]}.{value[6:12]}.{value[12:]}'

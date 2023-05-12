@@ -154,10 +154,7 @@ class BaseCommand(object):
 
         """
         usage = '%%prog %s [options] %s' % (subcommand, self.args)
-        if self.help:
-            return '%s\n\n%s' % (usage, self.help)
-        else:
-            return usage
+        return '%s\n\n%s' % (usage, self.help) if self.help else usage
 
     def create_parser(self, prog_name, subcommand):
         """
@@ -315,12 +312,11 @@ class LabelCommand(BaseCommand):
 
     def handle(self, *labels, **options):
         if not labels:
-            raise CommandError('Enter at least one %s.' % self.label)
+            raise CommandError(f'Enter at least one {self.label}.')
 
         output = []
         for label in labels:
-            label_output = self.handle_label(label, **options)
-            if label_output:
+            if label_output := self.handle_label(label, **options):
                 output.append(label_output)
         return '\n'.join(output)
 

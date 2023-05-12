@@ -28,7 +28,7 @@ from django.utils.encoding import force_unicode
 
 HORIZONTAL, VERTICAL = 1, 2
 # returns the <ul> class for a given radio_admin field
-get_ul_class = lambda x: 'radiolist%s' % ((x == HORIZONTAL) and ' inline' or '')
+get_ul_class = lambda x: f"radiolist{x == HORIZONTAL and ' inline' or ''}"
 
 class IncorrectLookupParameters(Exception):
     pass
@@ -198,9 +198,7 @@ class BaseModelAdmin(object):
         admin site. This is used by changelist_view.
         """
         qs = self.model._default_manager.get_query_set()
-        # TODO: this should be handled by some parameter to the ChangeList.
-        ordering = self.ordering or () # otherwise we might try to *None, which is bad ;)
-        if ordering:
+        if ordering := self.ordering or ():
             qs = qs.order_by(*ordering)
         return qs
 
@@ -340,12 +338,11 @@ class ModelAdmin(BaseModelAdmin):
         if self.actions is not None:
             js.extend(['js/actions.min.js'])
         if self.prepopulated_fields:
-            js.append('js/urlify.js')
-            js.append('js/prepopulate.min.js')
+            js.extend(('js/urlify.js', 'js/prepopulate.min.js'))
         if self.opts.get_ordered_objects():
             js.extend(['js/getElementsBySelector.js', 'js/dom-drag.js' , 'js/admin/ordering.js'])
 
-        return forms.Media(js=['%s%s' % (settings.ADMIN_MEDIA_PREFIX, url) for url in js])
+        return forms.Media(js=[f'{settings.ADMIN_MEDIA_PREFIX}{url}' for url in js])
     media = property(_media)
 
     def has_add_permission(self, request):
@@ -354,7 +351,7 @@ class ModelAdmin(BaseModelAdmin):
         Can be overriden by the user in subclasses.
         """
         opts = self.opts
-        return request.user.has_perm(opts.app_label + '.' + opts.get_add_permission())
+        return request.user.has_perm(f'{opts.app_label}.{opts.get_add_permission()}')
 
     def has_change_permission(self, request, obj=None):
         """
@@ -368,7 +365,9 @@ class ModelAdmin(BaseModelAdmin):
         request has permission to change *any* object of the given type.
         """
         opts = self.opts
-        return request.user.has_perm(opts.app_label + '.' + opts.get_change_permission())
+        return request.user.has_perm(
+            f'{opts.app_label}.{opts.get_change_permission()}'
+        )
 
     def has_delete_permission(self, request, obj=None):
         """
@@ -382,7 +381,9 @@ class ModelAdmin(BaseModelAdmin):
         request has permission to delete *any* object of the given type.
         """
         opts = self.opts
-        return request.user.has_perm(opts.app_label + '.' + opts.get_delete_permission())
+        return request.user.has_perm(
+            f'{opts.app_label}.{opts.get_delete_permission()}'
+        )
 
     def get_model_perms(self, request):
         """
@@ -413,10 +414,7 @@ class ModelAdmin(BaseModelAdmin):
             fields = flatten_fieldsets(self.declared_fieldsets)
         else:
             fields = None
-        if self.exclude is None:
-            exclude = []
-        else:
-            exclude = list(self.exclude)
+        exclude = [] if self.exclude is None else list(self.exclude)
         exclude.extend(kwargs.get("exclude", []))
         exclude.extend(self.get_readonly_fields(request, obj))
         # if exclude is an empty list we pass None to be consistant with the
@@ -426,9 +424,10 @@ class ModelAdmin(BaseModelAdmin):
             "form": self.form,
             "fields": fields,
             "exclude": exclude,
-            "formfield_callback": curry(self.formfield_for_dbfield, request=request),
-        }
-        defaults.update(kwargs)
+            "formfield_callback": curry(
+                self.formfield_for_dbfield, request=request
+            ),
+        } | kwargs
         return modelform_factory(self.model, **defaults)
 
     def get_changelist(self, request, **kwargs):
@@ -457,9 +456,10 @@ class ModelAdmin(BaseModelAdmin):
         Returns a Form class for use in the Formset on the changelist page.
         """
         defaults = {
-            "formfield_callback": curry(self.formfield_for_dbfield, request=request),
-        }
-        defaults.update(kwargs)
+            "formfield_callback": curry(
+                self.formfield_for_dbfield, request=request
+            ),
+        } | kwargs
         return modelform_factory(self.model, **defaults)
 
     def get_changelist_formset(self, request, **kwargs):
@@ -468,9 +468,10 @@ class ModelAdmin(BaseModelAdmin):
         is used.
         """
         defaults = {
-            "formfield_callback": curry(self.formfield_for_dbfield, request=request),
-        }
-        defaults.update(kwargs)
+            "formfield_callback": curry(
+                self.formfield_for_dbfield, request=request
+            ),
+        } | kwargs
         return modelformset_factory(self.model,
             self.get_changelist_form(request), extra=0,
             fields=self.list_editable, **defaults)
@@ -558,11 +559,8 @@ class ModelAdmin(BaseModelAdmin):
         # Then gather them from the model admin and all parent classes,
         # starting with self and working back up.
         for klass in self.__class__.mro()[::-1]:
-            class_actions = getattr(klass, 'actions', [])
-            # Avoid trying to iterate over None
-            if not class_actions:
-                continue
-            actions.extend([self.get_action(action) for action in class_actions])
+            if class_actions := getattr(klass, 'actions', []):
+                actions.extend([self.get_action(action) for action in class_actions])
 
         # get_action might have returned None, so filter any of those out.
         actions = filter(None, actions)
@@ -628,19 +626,31 @@ class ModelAdmin(BaseModelAdmin):
 
         if formsets:
             for formset in formsets:
-                for added_object in formset.new_objects:
-                    change_message.append(_('Added %(name)s "%(object)s".')
-                                          % {'name': force_unicode(added_object._meta.verbose_name),
-                                             'object': force_unicode(added_object)})
-                for changed_object, changed_fields in formset.changed_objects:
-                    change_message.append(_('Changed %(list)s for %(name)s "%(object)s".')
-                                          % {'list': get_text_list(changed_fields, _('and')),
-                                             'name': force_unicode(changed_object._meta.verbose_name),
-                                             'object': force_unicode(changed_object)})
-                for deleted_object in formset.deleted_objects:
-                    change_message.append(_('Deleted %(name)s "%(object)s".')
-                                          % {'name': force_unicode(deleted_object._meta.verbose_name),
-                                             'object': force_unicode(deleted_object)})
+                change_message.extend(
+                    _('Added %(name)s "%(object)s".')
+                    % {
+                        'name': force_unicode(added_object._meta.verbose_name),
+                        'object': force_unicode(added_object),
+                    }
+                    for added_object in formset.new_objects
+                )
+                change_message.extend(
+                    _('Changed %(list)s for %(name)s "%(object)s".')
+                    % {
+                        'list': get_text_list(changed_fields, _('and')),
+                        'name': force_unicode(changed_object._meta.verbose_name),
+                        'object': force_unicode(changed_object),
+                    }
+                    for changed_object, changed_fields in formset.changed_objects
+                )
+                change_message.extend(
+                    _('Deleted %(name)s "%(object)s".')
+                    % {
+                        'name': force_unicode(deleted_object._meta.verbose_name),
+                        'object': force_unicode(deleted_object),
+                    }
+                    for deleted_object in formset.deleted_objects
+                )
         change_message = ' '.join(change_message)
         return change_message or _('No fields changed.')
 
@@ -701,11 +711,16 @@ class ModelAdmin(BaseModelAdmin):
         else:
             form_template = self.change_form_template
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
-        return render_to_response(form_template or [
-            "admin/%s/%s/change_form.html" % (app_label, opts.object_name.lower()),
-            "admin/%s/change_form.html" % app_label,
-            "admin/change_form.html"
-        ], context, context_instance=context_instance)
+        return render_to_response(
+            form_template
+            or [
+                f"admin/{app_label}/{opts.object_name.lower()}/change_form.html",
+                f"admin/{app_label}/change_form.html",
+                "admin/change_form.html",
+            ],
+            context,
+            context_instance=context_instance,
+        )
 
     def response_add(self, request, obj, post_url_continue='../%s/'):
         """
@@ -718,17 +733,22 @@ class ModelAdmin(BaseModelAdmin):
         # Here, we distinguish between different save types by checking for
         # the presence of keys in request.POST.
         if "_continue" in request.POST:
-            self.message_user(request, msg + ' ' + _("You may edit it again below."))
+            self.message_user(request, f'{msg} ' + _("You may edit it again below."))
             if "_popup" in request.POST:
                 post_url_continue += "?_popup=1"
             return HttpResponseRedirect(post_url_continue % pk_value)
 
         if "_popup" in request.POST:
-            return HttpResponse('<script type="text/javascript">opener.dismissAddAnotherPopup(window, "%s", "%s");</script>' % \
-                # escape() calls force_unicode.
-                (escape(pk_value), escapejs(obj)))
+            return HttpResponse(
+                f'<script type="text/javascript">opener.dismissAddAnotherPopup(window, "{escape(pk_value)}", "{escapejs(obj)}");</script>'
+            )
         elif "_addanother" in request.POST:
-            self.message_user(request, msg + ' ' + (_("You may add another %s below.") % force_unicode(opts.verbose_name)))
+            self.message_user(
+                request,
+                f'{msg} '
+                + _("You may add another %s below.")
+                % force_unicode(opts.verbose_name),
+            )
             return HttpResponseRedirect(request.path)
         else:
             self.message_user(request, msg)
@@ -736,10 +756,7 @@ class ModelAdmin(BaseModelAdmin):
             # Figure out where to redirect. If the user has change permission,
             # redirect to the change-list page for this object. Otherwise,
             # redirect to the admin index.
-            if self.has_change_permission(request, None):
-                post_url = '../'
-            else:
-                post_url = '../../../'
+            post_url = '../' if self.has_change_permission(request, None) else '../../../'
             return HttpResponseRedirect(post_url)
 
     def response_change(self, request, obj):
@@ -758,17 +775,21 @@ class ModelAdmin(BaseModelAdmin):
 
         msg = _('The %(name)s "%(obj)s" was changed successfully.') % {'name': force_unicode(verbose_name), 'obj': force_unicode(obj)}
         if "_continue" in request.POST:
-            self.message_user(request, msg + ' ' + _("You may edit it again below."))
+            self.message_user(request, f'{msg} ' + _("You may edit it again below."))
             if "_popup" in request.REQUEST:
-                return HttpResponseRedirect(request.path + "?_popup=1")
+                return HttpResponseRedirect(f"{request.path}?_popup=1")
             else:
                 return HttpResponseRedirect(request.path)
         elif "_saveasnew" in request.POST:
             msg = _('The %(name)s "%(obj)s" was added successfully. You may edit it again below.') % {'name': force_unicode(verbose_name), 'obj': obj}
             self.message_user(request, msg)
-            return HttpResponseRedirect("../%s/" % pk_value)
+            return HttpResponseRedirect(f"../{pk_value}/")
         elif "_addanother" in request.POST:
-            self.message_user(request, msg + ' ' + (_("You may add another %s below.") % force_unicode(verbose_name)))
+            self.message_user(
+                request,
+                f'{msg} '
+                + _("You may add another %s below.") % force_unicode(verbose_name),
+            )
             return HttpResponseRedirect("../add/")
         else:
             self.message_user(request, msg)
@@ -859,6 +880,7 @@ class ModelAdmin(BaseModelAdmin):
 
         ModelForm = self.get_form(request)
         formsets = []
+        prefixes = {}
         if request.method == 'POST':
             form = ModelForm(request.POST, request.FILES)
             if form.is_valid():
@@ -867,12 +889,11 @@ class ModelAdmin(BaseModelAdmin):
             else:
                 form_validated = False
                 new_object = self.model()
-            prefixes = {}
             for FormSet, inline in zip(self.get_formsets(request), self.inline_instances):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1:
-                    prefix = "%s-%s" % (prefix, prefixes[prefix])
+                    prefix = f"{prefix}-{prefixes[prefix]}"
                 formset = FormSet(data=request.POST, files=request.FILES,
                                   instance=new_object,
                                   save_as_new="_saveasnew" in request.POST,
@@ -898,13 +919,12 @@ class ModelAdmin(BaseModelAdmin):
                 if isinstance(f, models.ManyToManyField):
                     initial[k] = initial[k].split(",")
             form = ModelForm(initial=initial)
-            prefixes = {}
             for FormSet, inline in zip(self.get_formsets(request),
                                        self.inline_instances):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1:
-                    prefix = "%s-%s" % (prefix, prefixes[prefix])
+                    prefix = f"{prefix}-{prefixes[prefix]}"
                 formset = FormSet(instance=self.model(), prefix=prefix,
                                   queryset=inline.queryset(request))
                 formsets.append(formset)
@@ -934,7 +954,7 @@ class ModelAdmin(BaseModelAdmin):
             'root_path': self.admin_site.root_path,
             'app_label': opts.app_label,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         return self.render_change_form(request, context, form_url=form_url, add=True)
 
     @csrf_protect_m
@@ -957,6 +977,7 @@ class ModelAdmin(BaseModelAdmin):
 
         ModelForm = self.get_form(request, obj)
         formsets = []
+        prefixes = {}
         if request.method == 'POST':
             form = ModelForm(request.POST, request.FILES, instance=obj)
             if form.is_valid():
@@ -965,13 +986,12 @@ class ModelAdmin(BaseModelAdmin):
             else:
                 form_validated = False
                 new_object = obj
-            prefixes = {}
             for FormSet, inline in zip(self.get_formsets(request, new_object),
                                        self.inline_instances):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1:
-                    prefix = "%s-%s" % (prefix, prefixes[prefix])
+                    prefix = f"{prefix}-{prefixes[prefix]}"
                 formset = FormSet(request.POST, request.FILES,
                                   instance=new_object, prefix=prefix,
                                   queryset=inline.queryset(request))
@@ -990,12 +1010,11 @@ class ModelAdmin(BaseModelAdmin):
 
         else:
             form = ModelForm(instance=obj)
-            prefixes = {}
             for FormSet, inline in zip(self.get_formsets(request, obj), self.inline_instances):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1:
-                    prefix = "%s-%s" % (prefix, prefixes[prefix])
+                    prefix = f"{prefix}-{prefixes[prefix]}"
                 formset = FormSet(instance=obj, prefix=prefix,
                                   queryset=inline.queryset(request))
                 formsets.append(formset)
@@ -1026,7 +1045,7 @@ class ModelAdmin(BaseModelAdmin):
             'root_path': self.admin_site.root_path,
             'app_label': opts.app_label,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         return self.render_change_form(request, context, change=True, obj=obj)
 
     @csrf_protect_m
@@ -1063,7 +1082,7 @@ class ModelAdmin(BaseModelAdmin):
             # page.
             if ERROR_FLAG in request.GET.keys():
                 return render_to_response('admin/invalid_setup.html', {'title': _('Database error')})
-            return HttpResponseRedirect(request.path + '?' + ERROR_FLAG + '=1')
+            return HttpResponseRedirect(f'{request.path}?{ERROR_FLAG}=1')
 
         # If the request was POSTed, this might be a bulk action or a bulk
         # edit. Try to look up an action or confirmation first, but if this
@@ -1076,8 +1095,9 @@ class ModelAdmin(BaseModelAdmin):
         if (actions and request.method == 'POST' and
                 'index' in request.POST and '_save' not in request.POST):
             if selected:
-                response = self.response_action(request, queryset=cl.get_query_set())
-                if response:
+                if response := self.response_action(
+                    request, queryset=cl.get_query_set()
+                ):
                     return response
                 else:
                     action_failed = True
@@ -1088,15 +1108,19 @@ class ModelAdmin(BaseModelAdmin):
                 action_failed = True
 
         # Actions with confirmation
-        if (actions and request.method == 'POST' and
-                helpers.ACTION_CHECKBOX_NAME in request.POST and
-                'index' not in request.POST and '_save' not in request.POST):
-            if selected:
-                response = self.response_action(request, queryset=cl.get_query_set())
-                if response:
-                    return response
-                else:
-                    action_failed = True
+        if (
+            actions
+            and request.method == 'POST'
+            and helpers.ACTION_CHECKBOX_NAME in request.POST
+            and 'index' not in request.POST
+            and '_save' not in request.POST
+        ) and selected:
+            if response := self.response_action(
+                request, queryset=cl.get_query_set()
+            ):
+                return response
+            else:
+                action_failed = True
 
         # If we're allowing changelist editing, we need to construct a formset
         # for the changelist given all the fields to be edited. Then we'll
@@ -1139,11 +1163,7 @@ class ModelAdmin(BaseModelAdmin):
             formset = cl.formset = FormSet(queryset=cl.result_list)
 
         # Build the list of media to be used by the formset.
-        if formset:
-            media = self.media + formset.media
-        else:
-            media = self.media
-
+        media = self.media + formset.media if formset else self.media
         # Build the action form and populate it with available actions.
         if actions:
             action_form = self.action_form(auto_id=None)
@@ -1170,13 +1190,18 @@ class ModelAdmin(BaseModelAdmin):
             'actions_on_bottom': self.actions_on_bottom,
             'actions_selection_counter': self.actions_selection_counter,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
-        return render_to_response(self.change_list_template or [
-            'admin/%s/%s/change_list.html' % (app_label, opts.object_name.lower()),
-            'admin/%s/change_list.html' % app_label,
-            'admin/change_list.html'
-        ], context, context_instance=context_instance)
+        return render_to_response(
+            self.change_list_template
+            or [
+                f'admin/{app_label}/{opts.object_name.lower()}/change_list.html',
+                f'admin/{app_label}/change_list.html',
+                'admin/change_list.html',
+            ],
+            context,
+            context_instance=context_instance,
+        )
 
     @csrf_protect_m
     @transaction.commit_on_success
@@ -1231,13 +1256,18 @@ class ModelAdmin(BaseModelAdmin):
             "root_path": self.admin_site.root_path,
             "app_label": app_label,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
-        return render_to_response(self.delete_confirmation_template or [
-            "admin/%s/%s/delete_confirmation.html" % (app_label, opts.object_name.lower()),
-            "admin/%s/delete_confirmation.html" % app_label,
-            "admin/delete_confirmation.html"
-        ], context, context_instance=context_instance)
+        return render_to_response(
+            self.delete_confirmation_template
+            or [
+                f"admin/{app_label}/{opts.object_name.lower()}/delete_confirmation.html",
+                f"admin/{app_label}/delete_confirmation.html",
+                "admin/delete_confirmation.html",
+            ],
+            context,
+            context_instance=context_instance,
+        )
 
     def history_view(self, request, object_id, extra_context=None):
         "The 'history' admin view for this model."
@@ -1259,13 +1289,18 @@ class ModelAdmin(BaseModelAdmin):
             'root_path': self.admin_site.root_path,
             'app_label': app_label,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
-        return render_to_response(self.object_history_template or [
-            "admin/%s/%s/object_history.html" % (app_label, opts.object_name.lower()),
-            "admin/%s/object_history.html" % app_label,
-            "admin/object_history.html"
-        ], context, context_instance=context_instance)
+        return render_to_response(
+            self.object_history_template
+            or [
+                f"admin/{app_label}/{opts.object_name.lower()}/object_history.html",
+                f"admin/{app_label}/object_history.html",
+                "admin/object_history.html",
+            ],
+            context,
+            context_instance=context_instance,
+        )
 
 class InlineModelAdmin(BaseModelAdmin):
     """
@@ -1299,11 +1334,10 @@ class InlineModelAdmin(BaseModelAdmin):
         from django.conf import settings
         js = ['js/jquery.min.js', 'js/jquery.init.js', 'js/inlines.min.js']
         if self.prepopulated_fields:
-            js.append('js/urlify.js')
-            js.append('js/prepopulate.min.js')
+            js.extend(('js/urlify.js', 'js/prepopulate.min.js'))
         if self.filter_vertical or self.filter_horizontal:
             js.extend(['js/SelectBox.js' , 'js/SelectFilter2.js'])
-        return forms.Media(js=['%s%s' % (settings.ADMIN_MEDIA_PREFIX, url) for url in js])
+        return forms.Media(js=[f'{settings.ADMIN_MEDIA_PREFIX}{url}' for url in js])
     media = property(_media)
 
     def get_formset(self, request, obj=None, **kwargs):
@@ -1312,10 +1346,7 @@ class InlineModelAdmin(BaseModelAdmin):
             fields = flatten_fieldsets(self.declared_fieldsets)
         else:
             fields = None
-        if self.exclude is None:
-            exclude = []
-        else:
-            exclude = list(self.exclude)
+        exclude = [] if self.exclude is None else list(self.exclude)
         exclude.extend(kwargs.get("exclude", []))
         exclude.extend(self.get_readonly_fields(request, obj))
         # if exclude is an empty list we use None, since that's the actual
@@ -1327,12 +1358,13 @@ class InlineModelAdmin(BaseModelAdmin):
             "fk_name": self.fk_name,
             "fields": fields,
             "exclude": exclude,
-            "formfield_callback": curry(self.formfield_for_dbfield, request=request),
+            "formfield_callback": curry(
+                self.formfield_for_dbfield, request=request
+            ),
             "extra": self.extra,
             "max_num": self.max_num,
             "can_delete": self.can_delete,
-        }
-        defaults.update(kwargs)
+        } | kwargs
         return inlineformset_factory(self.parent_model, self.model, **defaults)
 
     def get_fieldsets(self, request, obj=None):

@@ -33,18 +33,18 @@ class PasswordResetTokenGenerator(object):
             return False
 
         # Check that the timestamp/uid has not been tampered with
-        if not constant_time_compare(self._make_token_with_timestamp(user, ts), token):
-            # Fallback to Django 1.2 method for compatibility.
-            # PendingDeprecationWarning <- here to remind us to remove this in
-            # Django 1.5
-            if not constant_time_compare(self._make_token_with_timestamp_old(user, ts), token):
-                return False
-
-        # Check the timestamp is within limit
-        if (self._num_days(self._today()) - ts) > settings.PASSWORD_RESET_TIMEOUT_DAYS:
+        if not constant_time_compare(
+            self._make_token_with_timestamp(user, ts), token
+        ) and not constant_time_compare(
+            self._make_token_with_timestamp_old(user, ts), token
+        ):
             return False
 
-        return True
+        # Check the timestamp is within limit
+        return (
+            self._num_days(self._today()) - ts
+            <= settings.PASSWORD_RESET_TIMEOUT_DAYS
+        )
 
     def _make_token_with_timestamp(self, user, timestamp):
         # timestamp is number of days since 2001-1-1.  Converted to
@@ -59,10 +59,10 @@ class PasswordResetTokenGenerator(object):
         # We limit the hash to 20 chars to keep URL short
         key_salt = "django.contrib.auth.tokens.PasswordResetTokenGenerator"
         value = unicode(user.id) + \
-            user.password + user.last_login.strftime('%Y-%m-%d %H:%M:%S') + \
-            unicode(timestamp)
+                user.password + user.last_login.strftime('%Y-%m-%d %H:%M:%S') + \
+                unicode(timestamp)
         hash = salted_hmac(key_salt, value).hexdigest()[::2]
-        return "%s-%s" % (ts_b36, hash)
+        return f"{ts_b36}-{hash}"
 
     def _make_token_with_timestamp_old(self, user, timestamp):
         # The Django 1.2 method
@@ -70,7 +70,7 @@ class PasswordResetTokenGenerator(object):
         hash = sha_constructor(settings.SECRET_KEY + unicode(user.id) +
                                user.password + user.last_login.strftime('%Y-%m-%d %H:%M:%S') +
                                unicode(timestamp)).hexdigest()[::2]
-        return "%s-%s" % (ts_b36, hash)
+        return f"{ts_b36}-{hash}"
 
     def _num_days(self, dt):
         return (dt - date(2001,1,1)).days

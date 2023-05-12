@@ -32,11 +32,11 @@ OGRERR_NONE = 0
 
 def check_err(code):
     "Checks the given OGRERR, and raises an exception where appropriate."
-    
+
     if code == OGRERR_NONE:
         return
     elif code in OGRERR_DICT:
         e, msg = OGRERR_DICT[code]
         raise e(msg)
     else:
-        raise OGRException('Unknown error code: "%s"' % code)
+        raise OGRException(f'Unknown error code: "{code}"')

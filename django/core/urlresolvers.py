@@ -37,10 +37,7 @@ class ResolverMatch(object):
         self.args = args
         self.kwargs = kwargs
         self.app_name = app_name
-        if namespaces:
-            self.namespaces = [x for x in namespaces if x]
-        else:
-            self.namespaces = []
+        self.namespaces = [x for x in namespaces if x] if namespaces else []
         if not url_name:
             if not hasattr(func, '__name__'):
                 # An instance of a callable class
@@ -62,8 +59,7 @@ class ResolverMatch(object):
         return (self.func, self.args, self.kwargs)[index]
 
     def __repr__(self):
-        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name='%s', app_name='%s', namespace='%s')" % (
-            self.func, self.args, self.kwargs, self.url_name, self.app_name, self.namespace)
+        return f"ResolverMatch(func={self.func}, args={self.args}, kwargs={self.kwargs}, url_name='{self.url_name}', app_name='{self.app_name}', namespace='{self.namespace}')"
 
 class Resolver404(Http404):
     pass
@@ -90,7 +86,7 @@ def get_callable(lookup_view, can_fail=False):
             if func_name != '':
                 lookup_view = getattr(import_module(mod_name), func_name)
                 if not callable(lookup_view):
-                    raise AttributeError("'%s.%s' is not a callable." % (mod_name, func_name))
+                    raise AttributeError(f"'{mod_name}.{func_name}' is not a callable.")
         except (ImportError, AttributeError):
             if not can_fail:
                 raise
@@ -131,7 +127,7 @@ class RegexURLPattern(object):
         self.name = name
 
     def __repr__(self):
-        return '<%s %s %s>' % (self.__class__.__name__, self.name, self.regex.pattern)
+        return f'<{self.__class__.__name__} {self.name} {self.regex.pattern}>'
 
     def add_prefix(self, prefix):
         """
@@ -139,19 +135,15 @@ class RegexURLPattern(object):
         """
         if not prefix or not hasattr(self, '_callback_str'):
             return
-        self._callback_str = prefix + '.' + self._callback_str
+        self._callback_str = f'{prefix}.{self._callback_str}'
 
     def resolve(self, path):
-        match = self.regex.search(path)
-        if match:
+        if match := self.regex.search(path):
             # If there are any named groups, use those as kwargs, ignoring
             # non-named groups. Otherwise, pass all non-named arguments as
             # positional arguments.
             kwargs = match.groupdict()
-            if kwargs:
-                args = ()
-            else:
-                args = match.groups()
+            args = () if kwargs else match.groups()
             # In both cases, pass any extra_kwargs as **kwargs.
             kwargs.update(self.default_args)
 
@@ -188,7 +180,7 @@ class RegexURLResolver(object):
         self._app_dict = None
 
     def __repr__(self):
-        return '<%s %s (%s:%s) %s>' % (self.__class__.__name__, self.urlconf_name, self.app_name, self.namespace, self.regex.pattern)
+        return f'<{self.__class__.__name__} {self.urlconf_name} ({self.app_name}:{self.namespace}) {self.regex.pattern}>'
 
     def _populate(self):
         lookups = MultiValueDict()
@@ -280,7 +272,9 @@ class RegexURLResolver(object):
         try:
             iter(patterns)
         except TypeError:
-            raise ImproperlyConfigured("The included urlconf %s doesn't have any patterns in it" % self.urlconf_name)
+            raise ImproperlyConfigured(
+                f"The included urlconf {self.urlconf_name} doesn't have any patterns in it"
+            )
         return patterns
     url_patterns = property(_get_url_patterns)
 
@@ -419,9 +413,8 @@ def set_urlconf(urlconf_name):
     """
     if urlconf_name:
         _urlconfs.value = urlconf_name
-    else:
-        if hasattr(_urlconfs, "value"):
-            del _urlconfs.value
+    elif hasattr(_urlconfs, "value"):
+        del _urlconfs.value
 
 def get_urlconf(default=None):
     """

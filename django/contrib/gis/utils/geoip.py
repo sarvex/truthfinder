@@ -38,6 +38,7 @@
  >>> g.geos('24.124.1.80').wkt
  'POINT (-95.2087020874023438 39.0392990112304688)'
 """
+
 import os, re
 from ctypes import c_char_p, c_float, c_int, Structure, CDLL, POINTER
 from ctypes.util import find_library
@@ -45,26 +46,27 @@ from django.conf import settings
 if not settings.configured: settings.configure()
 
 # Creating the settings dictionary with any settings, if needed.
-GEOIP_SETTINGS = dict((key, getattr(settings, key))
-                      for key in ('GEOIP_PATH', 'GEOIP_LIBRARY_PATH', 'GEOIP_COUNTRY', 'GEOIP_CITY')
-                      if hasattr(settings, key))
-lib_path = GEOIP_SETTINGS.get('GEOIP_LIBRARY_PATH', None)
-
-# GeoIP Exception class.
+GEOIP_SETTINGS = {
+    key: getattr(settings, key)
+    for key in (
+        'GEOIP_PATH',
+        'GEOIP_LIBRARY_PATH',
+        'GEOIP_COUNTRY',
+        'GEOIP_CITY',
+    )
+    if hasattr(settings, key)
+}
 class GeoIPException(Exception): pass
-
+lib_path = GEOIP_SETTINGS.get('GEOIP_LIBRARY_PATH', None)
 # The shared library for the GeoIP C API.  May be downloaded
 #  from http://www.maxmind.com/download/geoip/api/c/
-if lib_path:
-    lib_name = None
-else:
-    # TODO: Is this really the library name for Windows?
-    lib_name = 'GeoIP'
-
+lib_name = None if lib_path else 'GeoIP'
 # Getting the path to the GeoIP library.
 if lib_name: lib_path = find_library(lib_name)
-if lib_path is None: raise GeoIPException('Could not find the GeoIP library (tried "%s"). '
-                                          'Try setting GEOIP_LIBRARY_PATH in your settings.' % lib_name)
+if lib_path is None:
+    raise GeoIPException(
+        f'Could not find the GeoIP library (tried "{lib_name}"). Try setting GEOIP_LIBRARY_PATH in your settings.'
+    )
 lgeoip = CDLL(lib_path)
 
 # Regular expressions for recognizing IP addresses and the GeoIP
@@ -73,7 +75,6 @@ ipregex = re.compile(r'^(?P<w>\d\d?\d?)\.(?P<x>\d\d?\d?)\.(?P<y>\d\d?\d?)\.(?P<z
 free_regex = re.compile(r'^GEO-\d{3}FREE')
 lite_regex = re.compile(r'^GEO-\d{3}LITE')
 
-#### GeoIP C Structure definitions ####
 class GeoIPRecord(Structure):
     _fields_ = [('country_code', c_char_p),
                 ('country_code3', c_char_p),
@@ -96,7 +97,6 @@ class GeoIPRecord(Structure):
                 #('continent_code', c_char_p),
                 ]
 class GeoIPTag(Structure): pass
-
 #### ctypes function prototypes ####
 RECTYPE = POINTER(GeoIPRecord)
 DBTYPE = POINTER(GeoIPTag)
@@ -183,14 +183,14 @@ class GeoIP(object):
         if cache in self.cache_options:
             self._cache = self.cache_options[cache]
         else:
-            raise GeoIPException('Invalid caching option: %s' % cache)
+            raise GeoIPException(f'Invalid caching option: {cache}')
 
         # Getting the GeoIP data path.
         if not path:
             path = GEOIP_SETTINGS.get('GEOIP_PATH', None)
-            if not path: raise GeoIPException('GeoIP path must be provided via parameter or the GEOIP_PATH setting.')
+        if not path: raise GeoIPException('GeoIP path must be provided via parameter or the GEOIP_PATH setting.')
         if not isinstance(path, basestring):
-            raise TypeError('Invalid path type: %s' % type(path).__name__)
+            raise TypeError(f'Invalid path type: {type(path).__name__}')
 
         if os.path.isdir(path):
             # Constructing the GeoIP database filenames using the settings
@@ -220,7 +220,7 @@ class GeoIP(object):
                 self._country = ptr
                 self._country_file = path
             else:
-                raise GeoIPException('Unable to recognize database edition: %s' % info)
+                raise GeoIPException(f'Unable to recognize database edition: {info}')
         else:
             raise GeoIPException('GeoIP path must be a valid file or directory.')
 
@@ -233,15 +233,17 @@ class GeoIP(object):
         "Helper routine for checking the query and database availability."
         # Making sure a string was passed in for the query.
         if not isinstance(query, basestring):
-            raise TypeError('GeoIP query must be a string, not type %s' % type(query).__name__)
+            raise TypeError(
+                f'GeoIP query must be a string, not type {type(query).__name__}'
+            )
 
         # Extra checks for the existence of country and city databases.
-        if city_or_country and not (self._country or self._city):
+        if city_or_country and not self._country and not self._city:
             raise GeoIPException('Invalid GeoIP country and city data files.')
         elif country and not self._country:
-            raise GeoIPException('Invalid GeoIP country data file: %s' % self._country_file)
+            raise GeoIPException(f'Invalid GeoIP country data file: {self._country_file}')
         elif city and not self._city:
-            raise GeoIPException('Invalid GeoIP city data file: %s' % self._city_file)
+            raise GeoIPException(f'Invalid GeoIP city data file: {self._city_file}')
 
     def city(self, query):
         """
@@ -261,27 +263,25 @@ class GeoIP(object):
         # into a dicionary and return.
         if bool(ptr):
             record = ptr.contents
-            return dict((tup[0], getattr(record, tup[0])) for tup in record._fields_)
+            return {tup[0]: getattr(record, tup[0]) for tup in record._fields_}
         else:
             return None
 
     def country_code(self, query):
         "Returns the country code for the given IP Address or FQDN."
         self._check_query(query, city_or_country=True)
-        if self._country:
-            if ipregex.match(query): return cntry_code_by_addr(self._country, query)
-            else: return cntry_code_by_name(self._country, query)
-        else:
+        if not self._country:
             return self.city(query)['country_code']
+        if ipregex.match(query): return cntry_code_by_addr(self._country, query)
+        else: return cntry_code_by_name(self._country, query)
 
     def country_name(self, query):
         "Returns the country name for the given IP Address or FQDN."
         self._check_query(query, city_or_country=True)
-        if self._country:
-            if ipregex.match(query): return cntry_name_by_addr(self._country, query)
-            else: return cntry_name_by_name(self._country, query)
-        else:
+        if not self._country:
             return self.city(query)['country_name']
+        if ipregex.match(query): return cntry_name_by_addr(self._country, query)
+        else: return cntry_name_by_name(self._country, query)
 
     def country(self, query):
         """
@@ -297,8 +297,7 @@ class GeoIP(object):
     #### Coordinate retrieval routines ####
     def coords(self, query, ordering=('longitude', 'latitude')):
         cdict = self.city(query)
-        if cdict is None: return None
-        else: return tuple(cdict[o] for o in ordering)
+        return None if cdict is None else tuple(cdict[o] for o in ordering)
 
     def lon_lat(self, query):
         "Returns a tuple of the (longitude, latitude) for the given query."
@@ -310,8 +309,7 @@ class GeoIP(object):
 
     def geos(self, query):
         "Returns a GEOS Point object for the given query."
-        ll = self.lon_lat(query)
-        if ll:
+        if ll := self.lon_lat(query):
             from django.contrib.gis.geos import Point
             return Point(ll, srid=4326)
         else:
@@ -320,20 +318,20 @@ class GeoIP(object):
     #### GeoIP Database Information Routines ####
     def country_info(self):
         "Returns information about the GeoIP country database."
-        if self._country is None:
-            ci = 'No GeoIP Country data in "%s"' % self._country_file
-        else:
-            ci = geoip_dbinfo(self._country)
-        return ci
+        return (
+            f'No GeoIP Country data in "{self._country_file}"'
+            if self._country is None
+            else geoip_dbinfo(self._country)
+        )
     country_info = property(country_info)
 
     def city_info(self):
         "Retuns information about the GeoIP city database."
-        if self._city is None:
-            ci = 'No GeoIP City data in "%s"' % self._city_file
-        else:
-            ci = geoip_dbinfo(self._city)
-        return ci
+        return (
+            f'No GeoIP City data in "{self._city_file}"'
+            if self._city is None
+            else geoip_dbinfo(self._city)
+        )
     city_info = property(city_info)
 
     def info(self):
@@ -347,10 +345,7 @@ class GeoIP(object):
         return GeoIP(full_path, cache)
 
     def _rec_by_arg(self, arg):
-        if self._city:
-            return self.city(arg)
-        else:
-            return self.country(arg)
+        return self.city(arg) if self._city else self.country(arg)
     region_by_addr = city
     region_by_name = city
     record_by_addr = _rec_by_arg

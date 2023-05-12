@@ -32,8 +32,7 @@ def Deserializer(stream_or_string, **options):
         stream = StringIO(stream_or_string)
     else:
         stream = stream_or_string
-    for obj in PythonDeserializer(simplejson.load(stream), **options):
-        yield obj
+    yield from PythonDeserializer(simplejson.load(stream), **options)
 
 class DjangoJSONEncoder(simplejson.JSONEncoder):
     """
@@ -46,7 +45,7 @@ class DjangoJSONEncoder(simplejson.JSONEncoder):
     def default(self, o):
         if isinstance(o, datetime.datetime):
             d = datetime_safe.new_datetime(o)
-            return d.strftime("%s %s" % (self.DATE_FORMAT, self.TIME_FORMAT))
+            return d.strftime(f"{self.DATE_FORMAT} {self.TIME_FORMAT}")
         elif isinstance(o, datetime.date):
             d = datetime_safe.new_date(o)
             return d.strftime(self.DATE_FORMAT)

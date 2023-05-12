@@ -39,12 +39,13 @@ def load_backend(path):
 
 def get_backends():
     from django.conf import settings
-    backends = []
-    for backend_path in settings.AUTHENTICATION_BACKENDS:
-        backends.append(load_backend(backend_path))
-    if not backends:
+    if backends := [
+        load_backend(backend_path)
+        for backend_path in settings.AUTHENTICATION_BACKENDS
+    ]:
+        return backends
+    else:
         raise ImproperlyConfigured('No authentication backends have been defined. Does AUTHENTICATION_BACKENDS contain anything?')
-    return backends
 
 def authenticate(**credentials):
     """
@@ -59,7 +60,7 @@ def authenticate(**credentials):
         if user is None:
             continue
         # Annotate the user object with the path of the backend.
-        user.backend = "%s.%s" % (backend.__module__, backend.__class__.__name__)
+        user.backend = f"{backend.__module__}.{backend.__class__.__name__}"
         return user
 
 def login(request, user):

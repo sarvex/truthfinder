@@ -90,7 +90,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         # function django_extract that's registered in connect(). Note that
         # single quotes are used because this is a string (and could otherwise
         # cause a collision with a field name).
-        return "django_extract('%s', %s)" % (lookup_type.lower(), field_name)
+        return f"django_extract('{lookup_type.lower()}', {field_name})"
 
     def date_interval_sql(self, sql, connector, timedelta):
         # It would be more straightforward if we could use the sqlite strftime
@@ -107,7 +107,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         # function django_date_trunc that's registered in connect(). Note that
         # single quotes are used because this is a string (and could otherwise
         # cause a collision with a field name).
-        return "django_date_trunc('%s', %s)" % (lookup_type.lower(), field_name)
+        return f"django_date_trunc('{lookup_type.lower()}', {field_name})"
 
     def drop_foreignkey_sql(self):
         return ""
@@ -116,30 +116,19 @@ class DatabaseOperations(BaseDatabaseOperations):
         return 'NULL'
 
     def quote_name(self, name):
-        if name.startswith('"') and name.endswith('"'):
-            return name # Quoting once is enough.
-        return '"%s"' % name
+        return name if name.startswith('"') and name.endswith('"') else f'"{name}"'
 
     def no_limit_value(self):
         return -1
 
     def sql_flush(self, style, tables, sequences):
-        # NB: The generated SQL below is specific to SQLite
-        # Note: The DELETE FROM... SQL generated below works for SQLite databases
-        # because constraints don't exist
-        sql = ['%s %s %s;' % \
-                (style.SQL_KEYWORD('DELETE'),
-                 style.SQL_KEYWORD('FROM'),
-                 style.SQL_FIELD(self.quote_name(table))
-                 ) for table in tables]
-        # Note: No requirement for reset of auto-incremented indices (cf. other
-        # sql_flush() implementations). Just return SQL at this point
-        return sql
+        return [
+            f"{style.SQL_KEYWORD('DELETE')} {style.SQL_KEYWORD('FROM')} {style.SQL_FIELD(self.quote_name(table))};"
+            for table in tables
+        ]
 
     def year_lookup_bounds(self, value):
-        first = '%s-01-01'
-        second = '%s-12-31 23:59:59.999999'
-        return [first % value, second % value]
+        return [f'{value}-01-01', f'{value}-12-31 23:59:59.999999']
 
     def convert_values(self, value, field):
         """SQLite returns floats when it should be returning decimals,
@@ -203,7 +192,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 'database': settings_dict['NAME'],
                 'detect_types': Database.PARSE_DECLTYPES | Database.PARSE_COLNAMES,
             }
-            kwargs.update(settings_dict['OPTIONS'])
+            kwargs |= settings_dict['OPTIONS']
             self.connection = Database.connect(**kwargs)
             # Register extract, date_trunc, and regexp functions.
             self.connection.create_function("django_extract", 2, _sqlite_extract)
@@ -277,10 +266,7 @@ def _sqlite_format_dtdelta(dt, conn, days, secs, usecs):
     try:
         dt = util.typecast_timestamp(dt)
         delta = datetime.timedelta(int(days), int(secs), int(usecs))
-        if conn.strip() == '+':
-            dt = dt + delta
-        else:
-            dt = dt - delta
+        dt = dt + delta if conn.strip() == '+' else dt - delta
     except (ValueError, TypeError):
         return None
 

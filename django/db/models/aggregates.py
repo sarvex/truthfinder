@@ -20,7 +20,7 @@ class Aggregate(object):
         self.extra = extra
 
     def _default_alias(self):
-        return '%s__%s' % (self.lookup, self.name.lower())
+        return f'{self.lookup}__{self.name.lower()}'
     default_alias = property(_default_alias)
 
     def add_to_query(self, query, alias, col, source, is_summary):

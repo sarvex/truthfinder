@@ -48,7 +48,6 @@ class BaseDatabaseCreation(object):
         opts = model._meta
         if not opts.managed or opts.proxy:
             return [], {}
-        final_output = []
         table_output = []
         pending_references = {}
         qn = self.connection.ops.quote_name
@@ -79,36 +78,37 @@ class BaseDatabaseCreation(object):
                 else:
                     field_output.extend(ref_output)
             table_output.append(' '.join(field_output))
-        for field_constraints in opts.unique_together:
-            table_output.append(style.SQL_KEYWORD('UNIQUE') + ' (%s)' % \
-                ", ".join([style.SQL_FIELD(qn(opts.get_field(f).column)) for f in field_constraints]))
-
+        table_output.extend(
+            style.SQL_KEYWORD('UNIQUE')
+            + f' ({", ".join([style.SQL_FIELD(qn(opts.get_field(f).column)) for f in field_constraints])})'
+            for field_constraints in opts.unique_together
+        )
         full_statement = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + style.SQL_TABLE(qn(opts.db_table)) + ' (']
-        for i, line in enumerate(table_output): # Combine and add commas.
-            full_statement.append('    %s%s' % (line, i < len(table_output)-1 and ',' or ''))
+        full_statement.extend(
+            f"    {line}{i < len(table_output) - 1 and ',' or ''}"
+            for i, line in enumerate(table_output)
+        )
         full_statement.append(')')
         if opts.db_tablespace:
             full_statement.append(self.connection.ops.tablespace_sql(opts.db_tablespace))
         full_statement.append(';')
-        final_output.append('\n'.join(full_statement))
-
+        final_output = ['\n'.join(full_statement)]
         if opts.has_auto_field:
             # Add any extra SQL needed to support auto-incrementing primary keys.
             auto_column = opts.auto_field.db_column or opts.auto_field.name
-            autoinc_sql = self.connection.ops.autoinc_sql(opts.db_table, auto_column)
-            if autoinc_sql:
-                for stmt in autoinc_sql:
-                    final_output.append(stmt)
-
+            if autoinc_sql := self.connection.ops.autoinc_sql(
+                opts.db_table, auto_column
+            ):
+                final_output.extend(iter(autoinc_sql))
         return final_output, pending_references
 
     def sql_for_inline_foreign_key_references(self, field, known_models, style):
         "Return the SQL snippet defining the foreign key reference for a field"
-        qn = self.connection.ops.quote_name
         if field.rel.to in known_models:
+            qn = self.connection.ops.quote_name
             output = [style.SQL_KEYWORD('REFERENCES') + ' ' + \
-                style.SQL_TABLE(qn(field.rel.to._meta.db_table)) + ' (' + \
-                style.SQL_FIELD(qn(field.rel.to._meta.get_field(field.rel.field_name).column)) + ')' +
+                    style.SQL_TABLE(qn(field.rel.to._meta.db_table)) + ' (' + \
+                    style.SQL_FIELD(qn(field.rel.to._meta.get_field(field.rel.field_name).column)) + ')' +
                 self.connection.ops.deferrable_sql()
             ]
             pending = False
@@ -126,10 +126,10 @@ class BaseDatabaseCreation(object):
 
         if not model._meta.managed or model._meta.proxy:
             return []
-        qn = self.connection.ops.quote_name
         final_output = []
         opts = model._meta
         if model in pending_references:
+            qn = self.connection.ops.quote_name
             for rel_class, f in pending_references[model]:
                 rel_opts = rel_class._meta
                 r_table = rel_opts.db_table
@@ -138,11 +138,13 @@ class BaseDatabaseCreation(object):
                 col = opts.get_field(f.rel.field_name).column
                 # For MySQL, r_name must be unique in the first 64 characters.
                 # So we are careful with character usage here.
-                r_name = '%s_refs_%s_%s' % (r_col, col, self._digest(r_table, table))
-                final_output.append(style.SQL_KEYWORD('ALTER TABLE') + ' %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;' % \
-                    (qn(r_table), qn(truncate_name(r_name, self.connection.ops.max_name_length())),
-                    qn(r_col), qn(table), qn(col),
-                    self.connection.ops.deferrable_sql()))
+                r_name = f'{r_col}_refs_{col}_{self._digest(r_table, table)}'
+                final_output.append(
+                    (
+                        style.SQL_KEYWORD('ALTER TABLE')
+                        + f' {qn(r_table)} ADD CONSTRAINT {qn(truncate_name(r_name, self.connection.ops.max_name_length()))} FOREIGN KEY ({qn(r_col)}) REFERENCES {qn(table)} ({qn(col)}){self.connection.ops.deferrable_sql()};'
+                    )
+                )
             del pending_references[model]
         return final_output
 
@@ -175,17 +177,17 @@ class BaseDatabaseCreation(object):
         if f.auto_created:
             opts = model._meta
             qn = self.connection.ops.quote_name
-            tablespace = f.db_tablespace or opts.db_tablespace
-            if tablespace:
-                sql = self.connection.ops.tablespace_sql(tablespace, inline=True)
-                if sql:
-                    tablespace_sql = ' ' + sql
+            if tablespace := f.db_tablespace or opts.db_tablespace:
+                if sql := self.connection.ops.tablespace_sql(
+                    tablespace, inline=True
+                ):
+                    tablespace_sql = f' {sql}'
                 else:
                     tablespace_sql = ''
             else:
                 tablespace_sql = ''
             table_output = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + \
-                style.SQL_TABLE(qn(f.m2m_db_table())) + ' (']
+                    style.SQL_TABLE(qn(f.m2m_db_table())) + ' (']
             table_output.append('    %s %s %s%s,' %
                 (style.SQL_FIELD(qn('id')),
                 style.SQL_COLTYPE(models.AutoField(primary_key=True).db_type(connection=self.connection)),
@@ -196,12 +198,12 @@ class BaseDatabaseCreation(object):
             inline_output, deferred = self.sql_for_inline_many_to_many_references(model, f, style)
             table_output.extend(inline_output)
 
-            table_output.append('    %s (%s, %s)%s' %
-                (style.SQL_KEYWORD('UNIQUE'),
-                style.SQL_FIELD(qn(f.m2m_column_name())),
-                style.SQL_FIELD(qn(f.m2m_reverse_name())),
-                tablespace_sql))
-            table_output.append(')')
+            table_output.extend(
+                (
+                    f"    {style.SQL_KEYWORD('UNIQUE')} ({style.SQL_FIELD(qn(f.m2m_column_name()))}, {style.SQL_FIELD(qn(f.m2m_reverse_name()))}){tablespace_sql}",
+                    ')',
+                )
+            )
             if opts.db_tablespace:
                 # f.db_tablespace is only for indices, so ignore its value here.
                 table_output.append(self.connection.ops.tablespace_sql(opts.db_tablespace))
@@ -209,18 +211,16 @@ class BaseDatabaseCreation(object):
             output.append('\n'.join(table_output))
 
             for r_table, r_col, table, col in deferred:
-                r_name = '%s_refs_%s_%s' % (r_col, col, self._digest(r_table, table))
-                output.append(style.SQL_KEYWORD('ALTER TABLE') + ' %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;' %
-                (qn(r_table),
-                qn(truncate_name(r_name, self.connection.ops.max_name_length())),
-                qn(r_col), qn(table), qn(col),
-                self.connection.ops.deferrable_sql()))
+                r_name = f'{r_col}_refs_{col}_{self._digest(r_table, table)}'
+                output.append(
+                    style.SQL_KEYWORD('ALTER TABLE')
+                    + f' {qn(r_table)} ADD CONSTRAINT {qn(truncate_name(r_name, self.connection.ops.max_name_length()))} FOREIGN KEY ({qn(r_col)}) REFERENCES {qn(table)} ({qn(col)}){self.connection.ops.deferrable_sql()};'
+                )
 
-            # Add any extra SQL needed to support auto-incrementing PKs
-            autoinc_sql = self.connection.ops.autoinc_sql(f.m2m_db_table(), 'id')
-            if autoinc_sql:
-                for stmt in autoinc_sql:
-                    output.append(stmt)
+            if autoinc_sql := self.connection.ops.autoinc_sql(
+                f.m2m_db_table(), 'id'
+            ):
+                output.extend(iter(autoinc_sql))
         return output
 
     def sql_for_inline_many_to_many_references(self, model, field, style):
@@ -270,25 +270,35 @@ class BaseDatabaseCreation(object):
 
         if f.db_index and not f.unique:
             qn = self.connection.ops.quote_name
-            tablespace = f.db_tablespace or model._meta.db_tablespace
-            if tablespace:
-                sql = self.connection.ops.tablespace_sql(tablespace)
-                if sql:
-                    tablespace_sql = ' ' + sql
-                else:
-                    tablespace_sql = ''
+            if tablespace := f.db_tablespace or model._meta.db_tablespace:
+                tablespace_sql = (
+                    f' {sql}'
+                    if (sql := self.connection.ops.tablespace_sql(tablespace))
+                    else ''
+                )
             else:
                 tablespace_sql = ''
-            i_name = '%s_%s' % (model._meta.db_table, self._digest(f.column))
-            output = [style.SQL_KEYWORD('CREATE INDEX') + ' ' +
-                style.SQL_TABLE(qn(truncate_name(i_name, self.connection.ops.max_name_length()))) + ' ' +
-                style.SQL_KEYWORD('ON') + ' ' +
-                style.SQL_TABLE(qn(model._meta.db_table)) + ' ' +
-                "(%s)" % style.SQL_FIELD(qn(f.column)) +
-                "%s;" % tablespace_sql]
+            i_name = f'{model._meta.db_table}_{self._digest(f.column)}'
+            return [
+                style.SQL_KEYWORD('CREATE INDEX')
+                + ' '
+                + style.SQL_TABLE(
+                    qn(
+                        truncate_name(
+                            i_name, self.connection.ops.max_name_length()
+                        )
+                    )
+                )
+                + ' '
+                + style.SQL_KEYWORD('ON')
+                + ' '
+                + style.SQL_TABLE(qn(model._meta.db_table))
+                + ' '
+                + f"({style.SQL_FIELD(qn(f.column))})"
+                + f"{tablespace_sql};"
+            ]
         else:
-            output = []
-        return output
+            return []
 
     def sql_destroy_model(self, model, references_to_delete, style):
         "Return the DROP TABLE and restraint dropping statements for a single model"
@@ -296,14 +306,14 @@ class BaseDatabaseCreation(object):
             return []
         # Drop the table now
         qn = self.connection.ops.quote_name
-        output = ['%s %s;' % (style.SQL_KEYWORD('DROP TABLE'),
-                              style.SQL_TABLE(qn(model._meta.db_table)))]
+        output = [
+            f"{style.SQL_KEYWORD('DROP TABLE')} {style.SQL_TABLE(qn(model._meta.db_table))};"
+        ]
         if model in references_to_delete:
             output.extend(self.sql_remove_table_constraints(model, references_to_delete, style))
 
         if model._meta.has_auto_field:
-            ds = self.connection.ops.drop_sequence_sql(model._meta.db_table)
-            if ds:
+            if ds := self.connection.ops.drop_sequence_sql(model._meta.db_table):
                 output.append(ds)
         return output
 
@@ -319,12 +329,10 @@ class BaseDatabaseCreation(object):
             col = f.column
             r_table = model._meta.db_table
             r_col = model._meta.get_field(f.rel.field_name).column
-            r_name = '%s_refs_%s_%s' % (col, r_col, self._digest(table, r_table))
-            output.append('%s %s %s %s;' % \
-                (style.SQL_KEYWORD('ALTER TABLE'),
-                style.SQL_TABLE(qn(table)),
-                style.SQL_KEYWORD(self.connection.ops.drop_foreignkey_sql()),
-                style.SQL_FIELD(qn(truncate_name(r_name, self.connection.ops.max_name_length())))))
+            r_name = f'{col}_refs_{r_col}_{self._digest(table, r_table)}'
+            output.append(
+                f"{style.SQL_KEYWORD('ALTER TABLE')} {style.SQL_TABLE(qn(table))} {style.SQL_KEYWORD(self.connection.ops.drop_foreignkey_sql())} {style.SQL_FIELD(qn(truncate_name(r_name, self.connection.ops.max_name_length())))};"
+            )
         del references_to_delete[model]
         return output
 
@@ -336,13 +344,15 @@ class BaseDatabaseCreation(object):
             DeprecationWarning
         )
 
-        qn = self.connection.ops.quote_name
         output = []
         if f.auto_created:
-            output.append("%s %s;" % (style.SQL_KEYWORD('DROP TABLE'),
-                style.SQL_TABLE(qn(f.m2m_db_table()))))
-            ds = self.connection.ops.drop_sequence_sql("%s_%s" % (model._meta.db_table, f.column))
-            if ds:
+            qn = self.connection.ops.quote_name
+            output.append(
+                f"{style.SQL_KEYWORD('DROP TABLE')} {style.SQL_TABLE(qn(f.m2m_db_table()))};"
+            )
+            if ds := self.connection.ops.drop_sequence_sql(
+                f"{model._meta.db_table}_{f.column}"
+            ):
                 output.append(ds)
         return output
 
@@ -474,7 +484,9 @@ class BaseDatabaseCreation(object):
         cursor = self.connection.cursor()
         self.set_autocommit()
         time.sleep(1) # To avoid "database is being accessed by other users" errors.
-        cursor.execute("DROP DATABASE %s" % self.connection.ops.quote_name(test_database_name))
+        cursor.execute(
+            f"DROP DATABASE {self.connection.ops.quote_name(test_database_name)}"
+        )
         self.connection.close()
 
     def set_autocommit(self):

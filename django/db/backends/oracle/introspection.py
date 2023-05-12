@@ -29,10 +29,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
     def get_field_type(self, data_type, description):
         # If it's a NUMBER with scale == 0, consider it an IntegerField
         if data_type == cx_Oracle.NUMBER and description[5] == 0:
-            if description[4] > 11:
-                return 'BigIntegerField'
-            else:
-                return 'IntegerField'
+            return 'BigIntegerField' if description[4] > 11 else 'IntegerField'
         else:
             return super(DatabaseIntrospection, self).get_field_type(
                 data_type, description)
@@ -44,11 +41,10 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     def get_table_description(self, cursor, table_name):
         "Returns a description of the table, with the DB-API cursor.description interface."
-        cursor.execute("SELECT * FROM %s WHERE ROWNUM < 2" % self.connection.ops.quote_name(table_name))
-        description = []
-        for desc in cursor.description:
-            description.append((desc[0].lower(),) + desc[1:])
-        return description
+        cursor.execute(
+            f"SELECT * FROM {self.connection.ops.quote_name(table_name)} WHERE ROWNUM < 2"
+        )
+        return [(desc[0].lower(),) + desc[1:] for desc in cursor.description]
 
     def table_name_converter(self, name):
         "Table name comparison is case insensitive under Oracle"
@@ -81,10 +77,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
            cb.column_name = tb.column_name AND
            ca.position = cb.position""", [table_name, table_name, table_name])
 
-        relations = {}
-        for row in cursor.fetchall():
-            relations[row[0]] = (row[2], row[1].lower())
-        return relations
+        return {row[0]: (row[2], row[1].lower()) for row in cursor.fetchall()}
 
     def get_indexes(self, cursor, table_name):
         """
@@ -116,7 +109,7 @@ WHERE  all_tab_cols.column_name = user_cons_columns.column_name (+)
   AND  all_tab_cols.table_name = UPPER(%s)
 """
         cursor.execute(sql, [table_name])
-        indexes = {}
-        for row in cursor.fetchall():
-            indexes[row[0]] = {'primary_key': row[1], 'unique': row[2]}
-        return indexes
+        return {
+            row[0]: {'primary_key': row[1], 'unique': row[2]}
+            for row in cursor.fetchall()
+        }

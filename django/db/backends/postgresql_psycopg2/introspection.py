@@ -14,8 +14,4 @@ class DatabaseIntrospection(PostgresDatabaseIntrospection):
                 AND c2.oid = con.confrelid
                 AND c1.relname = %s
                 AND con.contype = 'f'""", [table_name])
-        relations = {}
-        for row in cursor.fetchall():
-            # row[0] and row[1] are single-item lists, so grab the single item.
-            relations[row[0][0] - 1] = (row[1][0] - 1, row[2])
-        return relations
+        return {row[0][0] - 1: (row[1][0] - 1, row[2]) for row in cursor.fetchall()}

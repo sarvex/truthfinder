@@ -37,7 +37,9 @@ class LazySettings(LazyObject):
         except KeyError:
             # NOTE: This is arguably an EnvironmentError, but that causes
             # problems with Python's interactive help.
-            raise ImportError("Settings cannot be imported, because environment variable %s is undefined." % ENVIRONMENT_VARIABLE)
+            raise ImportError(
+                f"Settings cannot be imported, because environment variable {ENVIRONMENT_VARIABLE} is undefined."
+            )
 
         self._wrapped = Settings(settings_module)
 
@@ -68,8 +70,9 @@ class BaseSettings(object):
     """
     def __setattr__(self, name, value):
         if name in ("MEDIA_URL", "STATIC_URL") and value and not value.endswith('/'):
-            warnings.warn('If set, %s must end with a slash' % name,
-                          PendingDeprecationWarning)
+            warnings.warn(
+                f'If set, {name} must end with a slash', PendingDeprecationWarning
+            )
         object.__setattr__(self, name, value)
 
 

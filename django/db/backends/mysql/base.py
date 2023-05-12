@@ -154,9 +154,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         if lookup_type == 'week_day':
             # DAYOFWEEK() returns an integer, 1-7, Sunday=1.
             # Note: WEEKDAY() returns 0-6, Monday=0.
-            return "DAYOFWEEK(%s)" % field_name
+            return f"DAYOFWEEK({field_name})"
         else:
-            return "EXTRACT(%s FROM %s)" % (lookup_type.upper(), field_name)
+            return f"EXTRACT({lookup_type.upper()} FROM {field_name})"
 
     def date_trunc_sql(self, lookup_type, field_name):
         fields = ['year', 'month', 'day', 'hour', 'minute', 'second']
@@ -167,8 +167,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         except ValueError:
             sql = field_name
         else:
-            format_str = ''.join([f for f in format[:i]] + [f for f in format_def[i:]])
-            sql = "CAST(DATE_FORMAT(%s, '%s') AS DATETIME)" % (field_name, format_str)
+            format_str = ''.join(list(format[:i]) + list(format_def[i:]))
+            sql = f"CAST(DATE_FORMAT({field_name}, '{format_str}') AS DATETIME)"
         return sql
 
     def date_interval_sql(self, sql, connector, timedelta):
@@ -194,35 +194,30 @@ class DatabaseOperations(BaseDatabaseOperations):
         return 18446744073709551615L
 
     def quote_name(self, name):
-        if name.startswith("`") and name.endswith("`"):
-            return name # Quoting once is enough.
-        return "`%s`" % name
+        return name if name.startswith("`") and name.endswith("`") else f"`{name}`"
 
     def random_function_sql(self):
         return 'RAND()'
 
     def sql_flush(self, style, tables, sequences):
-        # NB: The generated SQL below is specific to MySQL
-        # 'TRUNCATE x;', 'TRUNCATE y;', 'TRUNCATE z;'... style SQL statements
-        # to clear all tables of all data
-        if tables:
-            sql = ['SET FOREIGN_KEY_CHECKS = 0;']
-            for table in tables:
-                sql.append('%s %s;' % (style.SQL_KEYWORD('TRUNCATE'), style.SQL_FIELD(self.quote_name(table))))
-            sql.append('SET FOREIGN_KEY_CHECKS = 1;')
+        if not tables:
+            return []
+        sql = ['SET FOREIGN_KEY_CHECKS = 0;']
+        sql.extend(
+            f"{style.SQL_KEYWORD('TRUNCATE')} {style.SQL_FIELD(self.quote_name(table))};"
+            for table in tables
+        )
+        sql.append('SET FOREIGN_KEY_CHECKS = 1;')
 
             # 'ALTER TABLE table AUTO_INCREMENT = 1;'... style SQL statements
             # to reset sequence indices
-            sql.extend(["%s %s %s %s %s;" % \
-                (style.SQL_KEYWORD('ALTER'),
-                 style.SQL_KEYWORD('TABLE'),
-                 style.SQL_TABLE(self.quote_name(sequence['table'])),
-                 style.SQL_KEYWORD('AUTO_INCREMENT'),
-                 style.SQL_FIELD('= 1'),
-                ) for sequence in sequences])
-            return sql
-        else:
-            return []
+        sql.extend(
+            [
+                f"{style.SQL_KEYWORD('ALTER')} {style.SQL_KEYWORD('TABLE')} {style.SQL_TABLE(self.quote_name(sequence['table']))} {style.SQL_KEYWORD('AUTO_INCREMENT')} {style.SQL_FIELD('= 1')};"
+                for sequence in sequences
+            ]
+        )
+        return sql
 
     def value_to_db_datetime(self, value):
         if value is None:
@@ -247,10 +242,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         return unicode(value.replace(microsecond=0))
 
     def year_lookup_bounds(self, value):
-        # Again, no microseconds
-        first = '%s-01-01 00:00:00'
-        second = '%s-12-31 23:59:59.99'
-        return [first % value, second % value]
+        return [f'{value}-01-01 00:00:00', f'{value}-12-31 23:59:59.99']
 
     def max_name_length(self):
         return 64
@@ -318,7 +310,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             # We need the number of potentially affected rows after an
             # "UPDATE", not the number of changed rows.
             kwargs['client_flag'] = CLIENT.FOUND_ROWS
-            kwargs.update(settings_dict['OPTIONS'])
+            kwargs |= settings_dict['OPTIONS']
             self.connection = Database.connect(**kwargs)
             self.connection.encoders[SafeUnicode] = self.connection.encoders[unicode]
             self.connection.encoders[SafeString] = self.connection.encoders[str]
@@ -336,8 +328,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         if not self.server_version:
             if not self._valid_connection():
                 self.cursor()
-            m = server_version_re.match(self.connection.get_server_info())
-            if not m:
+            if m := server_version_re.match(self.connection.get_server_info()):
+                self.server_version = tuple(int(x) for x in m.groups())
+            else:
                 raise Exception('Unable to determine MySQL version from version string %r' % self.connection.get_server_info())
-            self.server_version = tuple([int(x) for x in m.groups()])
         return self.server_version

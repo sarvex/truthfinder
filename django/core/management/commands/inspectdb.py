@@ -39,10 +39,10 @@ class Command(NoArgsCommand):
         yield "# Also note: You'll have to insert the output of 'django-admin.py sqlcustom [appname]'"
         yield "# into your database."
         yield ''
-        yield 'from %s import models' % self.db_module
+        yield f'from {self.db_module} import models'
         yield ''
         for table_name in connection.introspection.get_table_list(cursor):
-            yield 'class %s(models.Model):' % table2model(table_name)
+            yield f'class {table2model(table_name)}(models.Model):'
             try:
                 relations = connection.introspection.get_relations(cursor, table_name)
             except NotImplementedError:
@@ -66,17 +66,21 @@ class Command(NoArgsCommand):
                 if ' ' in att_name:
                     att_name = att_name.replace(' ', '_')
                     comment_notes.append('Field renamed to remove spaces.')
-                    
+
                 if '-' in att_name:
                     att_name = att_name.replace('-', '_')
                     comment_notes.append('Field renamed to remove dashes.')
-                    
+
                 if column_name != att_name:
                     comment_notes.append('Field name made lowercase.')
 
                 if i in relations:
-                    rel_to = relations[i][1] == table_name and "'self'" or table2model(relations[i][1])
-                    field_type = 'ForeignKey(%s' % rel_to
+                    rel_to = (
+                        "'self'"
+                        if relations[i][1] == table_name
+                        else table2model(relations[i][1])
+                    )
+                    field_type = f'ForeignKey({rel_to}'
                     if att_name.endswith('_id'):
                         att_name = att_name[:-3]
                     else:
@@ -85,7 +89,7 @@ class Command(NoArgsCommand):
                     # Calling `get_field_type` to get the field type string and any
                     # additional paramters and notes.
                     field_type, field_params, field_notes = self.get_field_type(connection, table_name, row)
-                    extra_params.update(field_params)
+                    extra_params |= field_params
                     comment_notes.extend(field_notes)
 
                     # Add primary_key and unique, if necessary.
@@ -96,7 +100,7 @@ class Command(NoArgsCommand):
                             extra_params['unique'] = True
 
                     field_type += '('
-                    
+
                 if keyword.iskeyword(att_name):
                     att_name += '_field'
                     comment_notes.append('Field renamed because it was a Python reserved word.')
@@ -110,10 +114,10 @@ class Command(NoArgsCommand):
                 # table description.
                 if row[6]: # If it's NULL...
                     extra_params['blank'] = True
-                    if not field_type in ('TextField(', 'CharField('):
+                    if field_type not in ('TextField(', 'CharField('):
                         extra_params['null'] = True
 
-                field_desc = '%s = models.%s' % (att_name, field_type)
+                field_desc = f'{att_name} = models.{field_type}'
                 if extra_params:
                     if not field_desc.endswith('('):
                         field_desc += ', '
@@ -121,9 +125,8 @@ class Command(NoArgsCommand):
                 field_desc += ')'
                 if comment_notes:
                     field_desc += ' # ' + ' '.join(comment_notes)
-                yield '    %s' % field_desc
-            for meta_line in self.get_meta(table_name):
-                yield meta_line
+                yield f'    {field_desc}'
+            yield from self.get_meta(table_name)
 
     def get_field_type(self, connection, table_name, row):
         """
@@ -144,7 +147,7 @@ class Command(NoArgsCommand):
         # (field_type, field_params_dict).
         if type(field_type) is tuple:
             field_type, new_params = field_type
-            field_params.update(new_params)
+            field_params |= new_params
 
         # Add max_length for all CharFields.
         if field_type == 'CharField' and row[3]:

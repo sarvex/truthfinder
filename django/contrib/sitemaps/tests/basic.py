@@ -93,7 +93,9 @@ class SitemapTests(TestCase):
         # haven't been rendered in localized format
         response = self.client.get('/simple/sitemap.xml')
         self.assertContains(response, '<priority>0.5</priority>')
-        self.assertContains(response, '<lastmod>%s</lastmod>' % date.today().strftime('%Y-%m-%d'))
+        self.assertContains(
+            response, f"<lastmod>{date.today().strftime('%Y-%m-%d')}</lastmod>"
+        )
         deactivate()
 
     def test_generic_sitemap(self):
@@ -101,9 +103,10 @@ class SitemapTests(TestCase):
         # Retrieve the sitemap.
         response = self.client.get('/generic/sitemap.xml')
 
-        expected = ''
-        for username in User.objects.values_list("username", flat=True):
-            expected += "<url><loc>%s/users/%s/</loc></url>" % (self.base_url, username)
+        expected = ''.join(
+            f"<url><loc>{self.base_url}/users/{username}/</loc></url>"
+            for username in User.objects.values_list("username", flat=True)
+        )
         # Check for all the important bits:
         self.assertEqual(response.content, """<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -137,9 +140,9 @@ class SitemapTests(TestCase):
         private.sites.add(settings.SITE_ID)
         response = self.client.get('/flatpages/sitemap.xml')
         # Public flatpage should be in the sitemap
-        self.assertContains(response, '<loc>%s%s</loc>' % (self.base_url, public.url))
+        self.assertContains(response, f'<loc>{self.base_url}{public.url}</loc>')
         # Private flatpage should not be in the sitemap
-        self.assertNotContains(response, '<loc>%s%s</loc>' % (self.base_url, private.url))
+        self.assertNotContains(response, f'<loc>{self.base_url}{private.url}</loc>')
 
     def test_requestsite_sitemap(self):
         # Make sure hitting the flatpages sitemap without the sites framework

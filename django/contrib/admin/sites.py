@@ -43,10 +43,7 @@ class AdminSite(object):
     def __init__(self, name=None, app_name='admin'):
         self._registry = {} # model_class class -> admin_class instance
         self.root_path = None
-        if name is None:
-            self.name = 'admin'
-        else:
-            self.name = name
+        self.name = 'admin' if name is None else name
         self.app_name = app_name
         self._actions = {'delete_selected': actions.delete_selected}
         self._global_actions = self._actions.copy()
@@ -82,7 +79,7 @@ class AdminSite(object):
                       'cannot be registered with admin.' % model.__name__)
 
             if model in self._registry:
-                raise AlreadyRegistered('The model %s is already registered' % model.__name__)
+                raise AlreadyRegistered(f'The model {model.__name__} is already registered')
 
             # If we got **options then dynamically construct a subclass of
             # admin_class with those **options.
@@ -91,7 +88,7 @@ class AdminSite(object):
                 # the created class appears to "live" in the wrong place,
                 # which causes issues later on.
                 options['__module__'] = __name__
-                admin_class = type("%sAdmin" % model.__name__, (admin_class,), options)
+                admin_class = type(f"{model.__name__}Admin", (admin_class,), options)
 
             # Validate (which might be a no-op)
             validate(admin_class, model)
@@ -109,7 +106,7 @@ class AdminSite(object):
             model_or_iterable = [model_or_iterable]
         for model in model_or_iterable:
             if model not in self._registry:
-                raise NotRegistered('The model %s is not registered' % model.__name__)
+                raise NotRegistered(f'The model {model.__name__} is not registered')
             del self._registry[model]
 
     def add_action(self, action, name=None):
@@ -163,8 +160,12 @@ class AdminSite(object):
         if not ContentType._meta.installed:
             raise ImproperlyConfigured("Put 'django.contrib.contenttypes' in "
                 "your INSTALLED_APPS setting in order to use the admin application.")
-        if not ('django.contrib.auth.context_processors.auth' in settings.TEMPLATE_CONTEXT_PROCESSORS or
-            'django.core.context_processors.auth' in settings.TEMPLATE_CONTEXT_PROCESSORS):
+        if (
+            'django.contrib.auth.context_processors.auth'
+            not in settings.TEMPLATE_CONTEXT_PROCESSORS
+            and 'django.core.context_processors.auth'
+            not in settings.TEMPLATE_CONTEXT_PROCESSORS
+        ):
             raise ImproperlyConfigured("Put 'django.contrib.auth.context_processors.auth' "
                 "in your TEMPLATE_CONTEXT_PROCESSORS setting in order to use the admin application.")
 
@@ -240,9 +241,12 @@ class AdminSite(object):
 
         # Add in each model's views.
         for model, model_admin in self._registry.iteritems():
-            urlpatterns += patterns('',
-                url(r'^%s/%s/' % (model._meta.app_label, model._meta.module_name),
-                    include(model_admin.urls))
+            urlpatterns += patterns(
+                '',
+                url(
+                    f'^{model._meta.app_label}/{model._meta.module_name}/',
+                    include(model_admin.urls),
+                ),
             )
         return urlpatterns
 
@@ -256,7 +260,7 @@ class AdminSite(object):
         """
         from django.contrib.auth.views import password_change
         if self.root_path is not None:
-            url = '%spassword_change/done/' % self.root_path
+            url = f'{self.root_path}password_change/done/'
         else:
             url = reverse('admin:password_change_done', current_app=self.name)
         defaults = {
@@ -321,7 +325,7 @@ class AdminSite(object):
             'app_path': request.get_full_path(),
             REDIRECT_FIELD_NAME: request.get_full_path(),
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         defaults = {
             'extra_context': context,
             'current_app': self.name,
@@ -340,9 +344,7 @@ class AdminSite(object):
         user = request.user
         for model, model_admin in self._registry.items():
             app_label = model._meta.app_label
-            has_module_perms = user.has_module_perms(app_label)
-
-            if has_module_perms:
+            if has_module_perms := user.has_module_perms(app_label):
                 perms = model_admin.get_model_perms(request)
 
                 # Check whether user has any perm for this module.
@@ -350,7 +352,9 @@ class AdminSite(object):
                 if True in perms.values():
                     model_dict = {
                         'name': capfirst(model._meta.verbose_name_plural),
-                        'admin_url': mark_safe('%s/%s/' % (app_label, model.__name__.lower())),
+                        'admin_url': mark_safe(
+                            f'{app_label}/{model.__name__.lower()}/'
+                        ),
                         'perms': perms,
                     }
                     if app_label in app_dict:
@@ -358,7 +362,7 @@ class AdminSite(object):
                     else:
                         app_dict[app_label] = {
                             'name': app_label.title(),
-                            'app_url': app_label + '/',
+                            'app_url': f'{app_label}/',
                             'has_module_perms': has_module_perms,
                             'models': [model_dict],
                         }
@@ -376,7 +380,7 @@ class AdminSite(object):
             'app_list': app_list,
             'root_path': self.root_path,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.name)
         return render_to_response(self.index_template or 'admin/index.html', context,
             context_instance=context_instance
@@ -387,30 +391,29 @@ class AdminSite(object):
         has_module_perms = user.has_module_perms(app_label)
         app_dict = {}
         for model, model_admin in self._registry.items():
-            if app_label == model._meta.app_label:
-                if has_module_perms:
-                    perms = model_admin.get_model_perms(request)
+            if app_label == model._meta.app_label and has_module_perms:
+                perms = model_admin.get_model_perms(request)
 
                     # Check whether user has any perm for this module.
                     # If so, add the module to the model_list.
-                    if True in perms.values():
-                        model_dict = {
-                            'name': capfirst(model._meta.verbose_name_plural),
-                            'admin_url': '%s/' % model.__name__.lower(),
-                            'perms': perms,
+                if True in perms.values():
+                    model_dict = {
+                        'name': capfirst(model._meta.verbose_name_plural),
+                        'admin_url': f'{model.__name__.lower()}/',
+                        'perms': perms,
+                    }
+                    if app_dict:
+                        app_dict['models'].append(model_dict),
+                    else:
+                        # First time around, now that we know there's
+                        # something to display, add in the necessary meta
+                        # information.
+                        app_dict = {
+                            'name': app_label.title(),
+                            'app_url': '',
+                            'has_module_perms': has_module_perms,
+                            'models': [model_dict],
                         }
-                        if app_dict:
-                            app_dict['models'].append(model_dict),
-                        else:
-                            # First time around, now that we know there's
-                            # something to display, add in the necessary meta
-                            # information.
-                            app_dict = {
-                                'name': app_label.title(),
-                                'app_url': '',
-                                'has_module_perms': has_module_perms,
-                                'models': [model_dict],
-                            }
         if not app_dict:
             raise http.Http404('The requested admin page does not exist.')
         # Sort the models alphabetically within each app.
@@ -420,11 +423,13 @@ class AdminSite(object):
             'app_list': [app_dict],
             'root_path': self.root_path,
         }
-        context.update(extra_context or {})
+        context |= (extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.name)
-        return render_to_response(self.app_index_template or ('admin/%s/app_index.html' % app_label,
-            'admin/app_index.html'), context,
-            context_instance=context_instance
+        return render_to_response(
+            self.app_index_template
+            or (f'admin/{app_label}/app_index.html', 'admin/app_index.html'),
+            context,
+            context_instance=context_instance,
         )
 
 # This global object represents the default admin site, for the common case.

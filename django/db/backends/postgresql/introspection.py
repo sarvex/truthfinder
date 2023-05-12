@@ -33,7 +33,9 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     def get_table_description(self, cursor, table_name):
         "Returns a description of the table, with the DB-API cursor.description interface."
-        cursor.execute("SELECT * FROM %s LIMIT 1" % self.connection.ops.quote_name(table_name))
+        cursor.execute(
+            f"SELECT * FROM {self.connection.ops.quote_name(table_name)} LIMIT 1"
+        )
         return cursor.description
 
     def get_relations(self, cursor, table_name):
@@ -75,14 +77,9 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 AND attr.attrelid = c.oid
                 AND attr.attnum = idx.indkey[0]
                 AND c.relname = %s""", [table_name])
-        indexes = {}
-        for row in cursor.fetchall():
-            # row[1] (idx.indkey) is stored in the DB as an array. It comes out as
-            # a string of space-separated integers. This designates the field
-            # indexes (1-based) of the fields that have indexes on the table.
-            # Here, we skip any indexes across multiple fields.
-            if ' ' in row[1]:
-                continue
-            indexes[row[0]] = {'primary_key': row[3], 'unique': row[2]}
-        return indexes
+        return {
+            row[0]: {'primary_key': row[3], 'unique': row[2]}
+            for row in cursor.fetchall()
+            if ' ' not in row[1]
+        }
 

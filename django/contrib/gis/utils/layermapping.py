@@ -77,10 +77,7 @@ class LayerMapping(object):
         argument usage.
         """
         # Getting the DataSource and the associated Layer.
-        if isinstance(data, basestring):
-            self.ds = DataSource(data)
-        else:
-            self.ds = data
+        self.ds = DataSource(data) if isinstance(data, basestring) else data
         self.layer = self.ds[layer]
 
         self.using = using
@@ -127,29 +124,23 @@ class LayerMapping(object):
         else:
             self.unique = None
 
-        # Setting the transaction decorator with the function in the
-        # transaction modes dictionary.
-        if transaction_mode in self.TRANSACTION_MODES:
-            self.transaction_decorator = self.TRANSACTION_MODES[transaction_mode]
-            self.transaction_mode = transaction_mode
-        else:
-            raise LayerMapError('Unrecognized transaction mode: %s' % transaction_mode)
+        if transaction_mode not in self.TRANSACTION_MODES:
+            raise LayerMapError(f'Unrecognized transaction mode: {transaction_mode}')
 
-        if using is None:
-            pass
+        self.transaction_decorator = self.TRANSACTION_MODES[transaction_mode]
+        self.transaction_mode = transaction_mode
 
     #### Checking routines used during initialization ####
     def check_fid_range(self, fid_range):
         "This checks the `fid_range` keyword."
-        if fid_range:
-            if isinstance(fid_range, (tuple, list)):
-                return slice(*fid_range)
-            elif isinstance(fid_range, slice):
-                return fid_range
-            else:
-                raise TypeError
-        else:
+        if not fid_range:
             return None
+        if isinstance(fid_range, (tuple, list)):
+            return slice(*fid_range)
+        elif isinstance(fid_range, slice):
+            return fid_range
+        else:
+            raise TypeError
 
     def check_layer(self):
         """
@@ -173,7 +164,9 @@ class LayerMapping(object):
             try:
                 idx = ogr_fields.index(ogr_map_fld)
             except ValueError:
-                raise LayerMapError('Given mapping OGR field "%s" not found in OGR Layer.' % ogr_map_fld)
+                raise LayerMapError(
+                    f'Given mapping OGR field "{ogr_map_fld}" not found in OGR Layer.'
+                )
             return idx
 
         # No need to increment through each feature in the model, simply check
@@ -184,7 +177,9 @@ class LayerMapping(object):
             try:
                 model_field = self.model._meta.get_field(field_name)
             except models.fields.FieldDoesNotExist:
-                raise LayerMapError('Given mapping field "%s" not in given Model fields.' % field_name)
+                raise LayerMapError(
+                    f'Given mapping field "{field_name}" not in given Model fields.'
+                )
 
             # Getting the string name for the Django field class (e.g., 'PointField').
             fld_name = model_field.__class__.__name__
@@ -198,11 +193,11 @@ class LayerMapping(object):
 
                 try:
                     if coord_dim == 3:
-                        gtype = OGRGeomType(ogr_name + '25D')
+                        gtype = OGRGeomType(f'{ogr_name}25D')
                     else:
                         gtype = OGRGeomType(ogr_name)
                 except OGRException:
-                    raise LayerMapError('Invalid mapping for GeometryField "%s".' % field_name)
+                    raise LayerMapError(f'Invalid mapping for GeometryField "{field_name}".')
 
                 # Making sure that the OGR Layer's Geometry is compatible.
                 ltype = self.layer.geom_type
@@ -226,15 +221,18 @@ class LayerMapping(object):
                         try:
                             rel_field = rel_model._meta.get_field(rel_name)
                         except models.fields.FieldDoesNotExist:
-                            raise LayerMapError('ForeignKey mapping field "%s" not in %s fields.' %
-                                                (rel_name, rel_model.__class__.__name__))
+                            raise LayerMapError(
+                                f'ForeignKey mapping field "{rel_name}" not in {rel_model.__class__.__name__} fields.'
+                            )
                     fields_val = rel_model
                 else:
                     raise TypeError('ForeignKey mapping must be of dictionary type.')
             else:
                 # Is the model field type supported by LayerMapping?
-                if not model_field.__class__ in self.FIELD_TYPES:
-                    raise LayerMapError('Django field type "%s" has no OGR mapping (yet).' % fld_name)
+                if model_field.__class__ not in self.FIELD_TYPES:
+                    raise LayerMapError(
+                        f'Django field type "{fld_name}" has no OGR mapping (yet).'
+                    )
 
                 # Is the OGR field in the Layer?
                 idx = check_ogr_fld(ogr_name)
@@ -242,8 +240,9 @@ class LayerMapping(object):
 
                 # Can the OGR field type be mapped to the Django field type?
                 if not issubclass(ogr_field, self.FIELD_TYPES[model_field.__class__]):
-                    raise LayerMapError('OGR field "%s" (of type %s) cannot be mapped to Django %s.' %
-                                        (ogr_field, ogr_field.__name__, fld_name))
+                    raise LayerMapError(
+                        f'OGR field "{ogr_field}" (of type {ogr_field.__name__}) cannot be mapped to Django {fld_name}.'
+                    )
                 fields_val = model_field
 
             self.fields[field_name] = fields_val
@@ -271,7 +270,7 @@ class LayerMapping(object):
         if isinstance(unique, (list, tuple)):
             # List of fields to determine uniqueness with
             for attr in unique:
-                if not attr in self.mapping: raise ValueError
+                if attr not in self.mapping: raise ValueError
         elif isinstance(unique, basestring):
             # Only a single field passed in.
             if unique not in self.mapping: raise ValueError
@@ -321,7 +320,7 @@ class LayerMapping(object):
         if isinstance(self.unique, basestring):
             return {self.unique : kwargs[self.unique]}
         else:
-            return dict((fld, kwargs[fld]) for fld in self.unique)
+            return {fld: kwargs[fld] for fld in self.unique}
 
     #### Verification routines used in constructing model keyword arguments. ####
     def verify_ogr_field(self, ogr_field, model_field):
@@ -339,14 +338,15 @@ class LayerMapping(object):
             else:
                 val = ogr_field.value
                 if len(val) > model_field.max_length:
-                    raise InvalidString('%s model field maximum string length is %s, given %s characters.' %
-                                        (model_field.name, model_field.max_length, len(val)))
+                    raise InvalidString(
+                        f'{model_field.name} model field maximum string length is {model_field.max_length}, given {len(val)} characters.'
+                    )
         elif isinstance(ogr_field, OFTReal) and isinstance(model_field, models.DecimalField):
             try:
                 # Creating an instance of the Decimal value to use.
                 d = Decimal(str(ogr_field.value))
             except:
-                raise InvalidDecimal('Could not construct decimal from: %s' % ogr_field.value)
+                raise InvalidDecimal(f'Could not construct decimal from: {ogr_field.value}')
 
             # Getting the decimal value as a tuple.
             dtup = d.as_tuple()
@@ -358,11 +358,7 @@ class LayerMapping(object):
 
             # Getting the digits to the left of the decimal place for the
             # given decimal.
-            if d_idx < 0:
-                n_prec = len(digits[:d_idx])
-            else:
-                n_prec = len(digits) + d_idx
-
+            n_prec = len(digits[:d_idx]) if d_idx < 0 else len(digits) + d_idx
             # If we have more than the maximum digits allowed, then throw an
             # InvalidDecimal exception.
             if n_prec > max_prec:
@@ -374,7 +370,7 @@ class LayerMapping(object):
             try:
                 val = int(ogr_field.value)
             except:
-                raise InvalidInteger('Could not construct integer from: %s' % ogr_field.value)
+                raise InvalidInteger(f'Could not construct integer from: {ogr_field.value}')
         else:
             val = ogr_field.value
         return val
@@ -385,20 +381,19 @@ class LayerMapping(object):
         this routine will retrieve the related model for the ForeignKey
         mapping.
         """
-        # TODO: It is expensive to retrieve a model for every record --
-        #  explore if an efficient mechanism exists for caching related
-        #  ForeignKey models.
-
-        # Constructing and verifying the related model keyword arguments.
-        fk_kwargs = {}
-        for field_name, ogr_name in rel_mapping.items():
-            fk_kwargs[field_name] = self.verify_ogr_field(feat[ogr_name], rel_model._meta.get_field(field_name))
-
+        fk_kwargs = {
+            field_name: self.verify_ogr_field(
+                feat[ogr_name], rel_model._meta.get_field(field_name)
+            )
+            for field_name, ogr_name in rel_mapping.items()
+        }
         # Attempting to retrieve and return the related model.
         try:
             return rel_model.objects.get(**fk_kwargs)
         except ObjectDoesNotExist:
-            raise MissingForeignKey('No ForeignKey %s model found with keyword arguments: %s' % (rel_model.__name__, fk_kwargs))
+            raise MissingForeignKey(
+                f'No ForeignKey {rel_model.__name__} model found with keyword arguments: {fk_kwargs}'
+            )
 
     def verify_geom(self, geom, model_field):
         """
@@ -452,8 +447,10 @@ class LayerMapping(object):
         Given the OGRGeomType for a geometry and its associated GeometryField,
         determine whether the geometry should be turned into a GeometryCollection.
         """
-        return (geom_type.num in self.MULTI_TYPES and
-                model_field.__class__.__name__ == 'Multi%s' % geom_type.django)
+        return (
+            geom_type.num in self.MULTI_TYPES
+            and model_field.__class__.__name__ == f'Multi{geom_type.django}'
+        )
 
     def save(self, verbose=False, fid_range=False, step=False,
              progress=False, silent=False, stream=sys.stdout, strict=False):

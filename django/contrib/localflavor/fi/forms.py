@@ -47,5 +47,5 @@ class FISocialSecurityNumber(Field):
         gd = result.groupdict()
         checksum = int(gd['date'] + gd['serial'])
         if checkmarks[checksum % len(checkmarks)] == gd['checksum'].upper():
-            return u'%s' % value.upper()
+            return f'{value.upper()}'
         raise ValidationError(self.error_messages['invalid'])

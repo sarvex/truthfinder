@@ -74,8 +74,9 @@ class PostGISIntrospection(DatabaseIntrospection):
                     row = cursor.fetchone()
 
             if not row:
-                raise Exception('Could not find a geometry or geography column for "%s"."%s"' %
-                                (table_name, geo_col))
+                raise Exception(
+                    f'Could not find a geometry or geography column for "{table_name}"."{geo_col}"'
+                )
 
             # OGRGeomType does not require GDAL and makes it easy to convert
             # from OGC geom type name to Django field.

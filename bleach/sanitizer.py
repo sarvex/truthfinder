@@ -34,7 +34,7 @@ class BleachSanitizerMixin(HTMLSanitizerMixin):
                                   token['data'][::-1]
                                   if name in allowed_attributes])
                     for attr in self.attr_val_is_uri:
-                        if not attr in attrs:
+                        if attr not in attrs:
                             continue
                         val_unescaped = re.sub("[`\000-\040\177-\240\s]+", '',
                                                unescape(attrs[attr])).lower()
@@ -56,20 +56,18 @@ class BleachSanitizerMixin(HTMLSanitizerMixin):
                         del attrs['xlink:href']
                     if 'style' in attrs:
                         attrs['style'] = self.sanitize_css(attrs['style'])
-                    token['data'] = [(name, val) for name, val in
-                                     attrs.items()]
+                    token['data'] = list(attrs.items())
                 return token
-            elif self.strip_disallowed_elements:
-                pass
-            else:
+            elif not self.strip_disallowed_elements:
                 if token['type'] == tokenTypes['EndTag']:
-                    token['data'] = '</%s>' % token['name']
+                    token['data'] = f"</{token['name']}>"
                 elif token['data']:
-                    attrs = ''.join([' %s="%s"' % (k, escape(v)) for k, v in
-                                    token['data']])
-                    token['data'] = '<%s%s>' % (token['name'], attrs)
+                    attrs = ''.join(
+                        [f' {k}="{escape(v)}"' for k, v in token['data']]
+                    )
+                    token['data'] = f"<{token['name']}{attrs}>"
                 else:
-                    token['data'] = '<%s>' % token['name']
+                    token['data'] = f"<{token['name']}>"
                 if token['selfClosing']:
                     token['data'] = token['data'][:-1] + '/>'
                 token['type'] = tokenTypes['Characters']
@@ -105,9 +103,9 @@ class BleachSanitizerMixin(HTMLSanitizerMixin):
             if not value:
                 continue
             if prop.lower() in self.allowed_css_properties:
-                clean.append(prop + ': ' + value + ';')
+                clean.append(f'{prop}: {value};')
             elif prop.lower() in self.allowed_svg_properties:
-                clean.append(prop + ': ' + value + ';')
+                clean.append(f'{prop}: {value};')
 
         return ' '.join(clean)
 
@@ -120,6 +118,5 @@ class BleachSanitizer(HTMLTokenizer, BleachSanitizerMixin):
 
     def __iter__(self):
         for token in HTMLTokenizer.__iter__(self):
-            token = self.sanitize_token(token)
-            if token:
+            if token := self.sanitize_token(token):
                 yield token

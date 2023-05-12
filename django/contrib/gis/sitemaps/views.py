@@ -17,18 +17,20 @@ def index(request, sitemaps):
     """
     current_site = get_current_site(request)
     sites = []
-    protocol = request.is_secure() and 'https' or 'http'
+    protocol = 'https' if request.is_secure() else 'http'
     for section, site in sitemaps.items():
         if callable(site):
             pages = site().paginator.num_pages
         else:
             pages = site.paginator.num_pages
         sitemap_url = urlresolvers.reverse('django.contrib.gis.sitemaps.views.sitemap', kwargs={'section': section})
-        sites.append('%s://%s%s' % (protocol, current_site.domain, sitemap_url))
+        sites.append(f'{protocol}://{current_site.domain}{sitemap_url}')
 
         if pages > 1:
-            for page in range(2, pages+1):
-                sites.append('%s://%s%s?p=%s' % (protocol, current_site.domain, sitemap_url, page))
+            sites.extend(
+                f'{protocol}://{current_site.domain}{sitemap_url}?p={page}'
+                for page in range(2, pages + 1)
+            )
     xml = loader.render_to_string('sitemap_index.xml', {'sitemaps': sites})
     return HttpResponse(xml, mimetype='application/xml')
 
@@ -38,13 +40,13 @@ def sitemap(request, sitemaps, section=None):
     elements defined by Google.
     """
     maps, urls = [], []
-    if section is not None:
-        if section not in sitemaps:
-            raise Http404("No sitemap available for section: %r" % section)
-        maps.append(sitemaps[section])
-    else:
+    if section is None:
         maps = sitemaps.values()
 
+    elif section not in sitemaps:
+        raise Http404("No sitemap available for section: %r" % section)
+    else:
+        maps.append(sitemaps[section])
     page = request.GET.get("p", 1)
     current_site = get_current_site(request)
     for site in maps:
@@ -54,9 +56,9 @@ def sitemap(request, sitemaps, section=None):
             else:
                 urls.extend(site.get_urls(page=page, site=current_site))
         except EmptyPage:
-            raise Http404("Page %s empty" % page)
+            raise Http404(f"Page {page} empty")
         except PageNotAnInteger:
-            raise Http404("No page '%s'" % page)
+            raise Http404(f"No page '{page}'")
     xml = smart_str(loader.render_to_string('gis/sitemaps/geo_sitemap.xml', {'urlset': urls}))
     return HttpResponse(xml, mimetype='application/xml')
 
@@ -70,7 +72,9 @@ def kml(request, label, model, field_name=None, compress=False, using=DEFAULT_DB
     placemarks = []
     klass = get_model(label, model)
     if not klass:
-        raise Http404('You must supply a valid app label and module name.  Got "%s.%s"' % (label, model))
+        raise Http404(
+            f'You must supply a valid app label and module name.  Got "{label}.{model}"'
+        )
 
     if field_name:
         try:
@@ -98,10 +102,7 @@ def kml(request, label, model, field_name=None, compress=False, using=DEFAULT_DB
             placemarks.append(mod)
 
     # Getting the render function and rendering to the correct.
-    if compress:
-        render = render_to_kmz
-    else:
-        render = render_to_kml
+    render = render_to_kmz if compress else render_to_kml
     return render('gis/kml/placemarks.kml', {'places' : placemarks})
 
 def kmz(request, label, model, field_name=None, using=DEFAULT_DB_ALIAS):

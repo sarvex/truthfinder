@@ -71,7 +71,7 @@ class SpatialRefSysTest(unittest.TestCase):
             self.assertEqual(sd['geographic'], sr.geographic)
             self.assertEqual(sd['projected'], sr.projected)
 
-            if not (spatialite and not sd['spatialite']):
+            if not spatialite or sd['spatialite']:
                 # Can't get 'NAD83 / Texas South Central' from PROJ.4 string
                 # on SpatiaLite
                 self.assertEqual(True, sr.name.startswith(sd['name']))
@@ -83,10 +83,11 @@ class SpatialRefSysTest(unittest.TestCase):
                     self.assertEqual(sd['proj4'], srs.proj4)
                 # No `srtext` field in the `spatial_ref_sys` table in SpatiaLite
                 if not spatialite:
-                    if connection.ops.spatial_version >= (1, 4, 0):
-                        srtext = sd['srtext14']
-                    else:
-                        srtext = sd['srtext']
+                    srtext = (
+                        sd['srtext14']
+                        if connection.ops.spatial_version >= (1, 4, 0)
+                        else sd['srtext']
+                    )
                     self.assertEqual(srtext, srs.wkt)
 
     @no_mysql
@@ -104,7 +105,7 @@ class SpatialRefSysTest(unittest.TestCase):
             for i in range(3):
                 param1 = ellps1[i]
                 param2 = ellps2[i]
-                self.assertAlmostEqual(ellps1[i], ellps2[i], prec[i])
+                self.assertAlmostEqual(param1, param2, prec[i])
 
 def suite():
     s = unittest.TestSuite()

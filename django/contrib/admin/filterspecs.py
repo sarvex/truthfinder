@@ -28,12 +28,12 @@ class FilterSpec(object):
             else:
                 self.field_path = f.name
 
-    def register(cls, test, factory):
-        cls.filter_specs.append((test, factory))
+    def register(self, test, factory):
+        self.filter_specs.append((test, factory))
     register = classmethod(register)
 
-    def create(cls, f, request, params, model, model_admin, field_path=None):
-        for test, factory in cls.filter_specs:
+    def create(self, f, request, params, model, model_admin, field_path=None):
+        for test, factory in self.filter_specs:
             if test(f):
                 return factory(f, request, params, model, model_admin,
                                field_path=field_path)
@@ -53,11 +53,15 @@ class FilterSpec(object):
         if self.has_output():
             t.append(_(u'<h3>By %s:</h3>\n<ul>\n') % escape(self.title()))
 
-            for choice in self.choices(cl):
-                t.append(u'<li%s><a href="%s">%s</a></li>\n' % \
-                    ((choice['selected'] and ' class="selected"' or ''),
-                     iri_to_uri(choice['query_string']),
-                     choice['display']))
+            t.extend(
+                u'<li%s><a href="%s">%s</a></li>\n'
+                % (
+                    (choice['selected'] and ' class="selected"' or ''),
+                    iri_to_uri(choice['query_string']),
+                    choice['display'],
+                )
+                for choice in self.choices(cl)
+            )
             t.append('</ul>\n\n')
         return mark_safe("".join(t))
 
@@ -75,8 +79,8 @@ class RelatedFilterSpec(FilterSpec):
         else:
             self.lookup_title = f.verbose_name # use field name
         rel_name = other_model._meta.pk.name
-        self.lookup_kwarg = '%s__%s__exact' % (self.field_path, rel_name)
-        self.lookup_kwarg_isnull = '%s__isnull' % (self.field_path)
+        self.lookup_kwarg = f'{self.field_path}__{rel_name}__exact'
+        self.lookup_kwarg_isnull = f'{self.field_path}__isnull'
         self.lookup_val = request.GET.get(self.lookup_kwarg, None)
         self.lookup_val_isnull = request.GET.get(
                                       self.lookup_kwarg_isnull, None)
@@ -127,8 +131,8 @@ class BooleanFieldFilterSpec(FilterSpec):
         super(BooleanFieldFilterSpec, self).__init__(f, request, params, model,
                                                      model_admin,
                                                      field_path=field_path)
-        self.lookup_kwarg = '%s__exact' % self.field_path
-        self.lookup_kwarg2 = '%s__isnull' % self.field_path
+        self.lookup_kwarg = f'{self.field_path}__exact'
+        self.lookup_kwarg2 = f'{self.field_path}__isnull'
         self.lookup_val = request.GET.get(self.lookup_kwarg, None)
         self.lookup_val2 = request.GET.get(self.lookup_kwarg2, None)
 
@@ -149,9 +153,10 @@ class BooleanFieldFilterSpec(FilterSpec):
                                    [self.lookup_kwarg]),
                    'display': _('Unknown')}
 
-FilterSpec.register(lambda f: isinstance(f, models.BooleanField)
-                              or isinstance(f, models.NullBooleanField),
-                                 BooleanFieldFilterSpec)
+FilterSpec.register(
+    lambda f: isinstance(f, (models.BooleanField, models.NullBooleanField)),
+    BooleanFieldFilterSpec,
+)
 
 class ChoicesFilterSpec(FilterSpec):
     def __init__(self, f, request, params, model, model_admin,
@@ -159,7 +164,7 @@ class ChoicesFilterSpec(FilterSpec):
         super(ChoicesFilterSpec, self).__init__(f, request, params, model,
                                                 model_admin,
                                                 field_path=field_path)
-        self.lookup_kwarg = '%s__exact' % self.field_path
+        self.lookup_kwarg = f'{self.field_path}__exact'
         self.lookup_val = request.GET.get(self.lookup_kwarg, None)
 
     def choices(self, cl):
@@ -181,7 +186,7 @@ class DateFieldFilterSpec(FilterSpec):
                                                   model_admin,
                                                   field_path=field_path)
 
-        self.field_generic = '%s__' % self.field_path
+        self.field_generic = f'{self.field_path}__'
 
         self.date_params = dict([(k, v) for k, v in params.items()
                                  if k.startswith(self.field_generic)])
@@ -189,20 +194,34 @@ class DateFieldFilterSpec(FilterSpec):
         today = datetime.date.today()
         one_week_ago = today - datetime.timedelta(days=7)
         today_str = isinstance(self.field, models.DateTimeField) \
-                    and today.strftime('%Y-%m-%d 23:59:59') \
-                    or today.strftime('%Y-%m-%d')
+                        and today.strftime('%Y-%m-%d 23:59:59') \
+                        or today.strftime('%Y-%m-%d')
 
         self.links = (
             (_('Any date'), {}),
-            (_('Today'), {'%s__year' % self.field_path: str(today.year),
-                       '%s__month' % self.field_path: str(today.month),
-                       '%s__day' % self.field_path: str(today.day)}),
-            (_('Past 7 days'), {'%s__gte' % self.field_path:
-                                    one_week_ago.strftime('%Y-%m-%d'),
-                             '%s__lte' % self.field_path: today_str}),
-            (_('This month'), {'%s__year' % self.field_path: str(today.year),
-                             '%s__month' % self.field_path: str(today.month)}),
-            (_('This year'), {'%s__year' % self.field_path: str(today.year)})
+            (
+                _('Today'),
+                {
+                    f'{self.field_path}__year': str(today.year),
+                    f'{self.field_path}__month': str(today.month),
+                    f'{self.field_path}__day': str(today.day),
+                },
+            ),
+            (
+                _('Past 7 days'),
+                {
+                    f'{self.field_path}__gte': one_week_ago.strftime('%Y-%m-%d'),
+                    f'{self.field_path}__lte': today_str,
+                },
+            ),
+            (
+                _('This month'),
+                {
+                    f'{self.field_path}__year': str(today.year),
+                    f'{self.field_path}__month': str(today.month),
+                },
+            ),
+            (_('This year'), {f'{self.field_path}__year': str(today.year)}),
         )
 
     def title(self):
@@ -230,7 +249,7 @@ class AllValuesFilterSpec(FilterSpec):
                                                   model_admin,
                                                   field_path=field_path)
         self.lookup_kwarg = self.field_path
-        self.lookup_kwarg_isnull = '%s__isnull' % self.field_path
+        self.lookup_kwarg_isnull = f'{self.field_path}__isnull'
         self.lookup_val = request.GET.get(self.lookup_kwarg, None)
         self.lookup_val_isnull = request.GET.get(self.lookup_kwarg_isnull,
                                                  None)
@@ -243,7 +262,7 @@ class AllValuesFilterSpec(FilterSpec):
         queryset = queryset.filter(limit_choices_to)
 
         self.lookup_choices = \
-            queryset.distinct().order_by(f.name).values_list(f.name, flat=True)
+                queryset.distinct().order_by(f.name).values_list(f.name, flat=True)
 
     def title(self):
         return self.field.verbose_name

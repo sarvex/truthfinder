@@ -41,11 +41,15 @@ class Driver(GDALBase):
         elif isinstance(dr_input, c_void_p):
             dr = dr_input
         else:
-            raise OGRException('Unrecognized input type for OGR Driver: %s' % str(type(dr_input)))
+            raise OGRException(
+                f'Unrecognized input type for OGR Driver: {str(type(dr_input))}'
+            )
 
         # Making sure we get a valid pointer to the OGR Driver
         if not dr:
-            raise OGRException('Could not initialize OGR Driver on input: %s' % str(dr_input))
+            raise OGRException(
+                f'Could not initialize OGR Driver on input: {str(dr_input)}'
+            )
         self.ptr = dr
 
     def __str__(self):

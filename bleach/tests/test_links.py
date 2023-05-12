@@ -6,14 +6,15 @@ from bleach import linkify, url_re
 
 
 def filter_url(url):
-    return u'http://bouncer/?u=%s' % urllib.quote_plus(url)
+    return f'http://bouncer/?u={urllib.quote_plus(url)}'
 
 
 def test_url_re():
     def no_match(s):
         match = url_re.search(s)
         if match:
-            assert not match, 'matched %s' % s[slice(*match.span())]
+            assert not match, f'matched {s[slice(*match.span())]}'
+
     yield no_match, 'just what i am looking for...it'
 
 

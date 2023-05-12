@@ -8,10 +8,10 @@ class Command(BaseCommand):
     requires_model_validation = False
 
     def _get_pass(self, prompt="Password: "):
-        p = getpass.getpass(prompt=prompt)
-        if not p:
+        if p := getpass.getpass(prompt=prompt):
+            return p
+        else:
             raise CommandError("aborted")
-        return p
 
     def handle(self, *args, **options):
         if len(args) > 1:

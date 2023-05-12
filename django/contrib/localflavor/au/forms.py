@@ -35,9 +35,8 @@ class AUPhoneNumberField(Field):
         if value in EMPTY_VALUES:
             return u''
         value = re.sub('(\(|\)|\s+|-)', '', smart_unicode(value))
-        phone_match = PHONE_DIGITS_RE.search(value)
-        if phone_match:
-            return u'%s' % phone_match.group(1)
+        if phone_match := PHONE_DIGITS_RE.search(value):
+            return f'{phone_match.group(1)}'
         raise ValidationError(self.error_messages['invalid'])
 
 class AUStateSelect(Select):

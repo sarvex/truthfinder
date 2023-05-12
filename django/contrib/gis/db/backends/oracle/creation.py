@@ -30,7 +30,7 @@ class OracleCreation(DatabaseCreation):
             if f.spatial_index:
                 # Getting the index name, Oracle doesn't allow object
                 # names > 30 characters.
-                idx_name = truncate_name('%s_%s_id' % (db_table, f.column), 30)
+                idx_name = truncate_name(f'{db_table}_{f.column}_id', 30)
 
                 output.append(style.SQL_KEYWORD('CREATE INDEX ') +
                               style.SQL_TABLE(qn(idx_name)) +

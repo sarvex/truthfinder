@@ -125,7 +125,7 @@ class CookieStorage(BaseStorage):
         if messages or encode_empty:
             encoder = MessageEncoder(separators=(',', ':'))
             value = encoder.encode(messages)
-            return '%s$%s' % (self._hash(value), value)
+            return f'{self._hash(value)}${value}'
 
     def _decode(self, data):
         """

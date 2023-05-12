@@ -15,9 +15,7 @@ def supports_color():
     unsupported_platform = (sys.platform in ('win32', 'Pocket PC'))
     # isatty is not always implemented, #6223.
     is_a_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
-    if unsupported_platform or not is_a_tty:
-        return False
-    return True
+    return bool(not unsupported_platform and is_a_tty)
 
 def color_style():
     """Returns a Style object with the Django color scheme."""
@@ -25,8 +23,7 @@ def color_style():
         style = no_style()
     else:
         DJANGO_COLORS = os.environ.get('DJANGO_COLORS', '')
-        color_settings = termcolors.parse_color_setting(DJANGO_COLORS)
-        if color_settings:
+        if color_settings := termcolors.parse_color_setting(DJANGO_COLORS):
             class dummy: pass
             style = dummy()
             # The nocolor palette has all available roles.

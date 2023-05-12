@@ -165,8 +165,7 @@ class BaseDatabaseWrapper(local):
         management and there is a pending commit/rollback, the data will be
         commited.
         """
-        top = self.transaction_state
-        if top:
+        if top := self.transaction_state:
             top[-1] = flag
             if not flag and self.is_dirty():
                 self._commit()
@@ -245,12 +244,14 @@ class BaseDatabaseWrapper(local):
             self.connection = None
 
     def cursor(self):
-        if (self.use_debug_cursor or
-            (self.use_debug_cursor is None and settings.DEBUG)):
-            cursor = self.make_debug_cursor(self._cursor())
-        else:
-            cursor = util.CursorWrapper(self._cursor(), self)
-        return cursor
+        return (
+            self.make_debug_cursor(self._cursor())
+            if (
+                self.use_debug_cursor
+                or (self.use_debug_cursor is None and settings.DEBUG)
+            )
+            else util.CursorWrapper(self._cursor(), self)
+        )
 
     def make_debug_cursor(self, cursor):
         return util.CursorDebugWrapper(cursor, self)
@@ -503,7 +504,7 @@ class BaseDatabaseOperations(object):
         # Convert params to contain Unicode values.
         to_unicode = lambda s: force_unicode(s, strings_only=True, errors='replace')
         if isinstance(params, (list, tuple)):
-            u_params = tuple([to_unicode(val) for val in params])
+            u_params = tuple(to_unicode(val) for val in params)
         else:
             u_params = dict([(to_unicode(k), to_unicode(v)) for k, v in params.items()])
 
@@ -653,9 +654,7 @@ class BaseDatabaseOperations(object):
         return "BEGIN;"
 
     def end_transaction_sql(self, success=True):
-        if not success:
-            return "ROLLBACK;"
-        return "COMMIT;"
+        return "ROLLBACK;" if not success else "COMMIT;"
 
     def tablespace_sql(self, tablespace, inline=False):
         """
@@ -678,9 +677,7 @@ class BaseDatabaseOperations(object):
         Transform a value to an object compatible with the auto field required
         by the backend driver for auto columns.
         """
-        if value is None:
-            return None
-        return int(value)
+        return None if value is None else int(value)
 
     def value_to_db_date(self, value):
         """
@@ -696,18 +693,14 @@ class BaseDatabaseOperations(object):
         Transform a datetime value to an object compatible with what is expected
         by the backend driver for datetime columns.
         """
-        if value is None:
-            return None
-        return unicode(value)
+        return None if value is None else unicode(value)
 
     def value_to_db_time(self, value):
         """
         Transform a datetime value to an object compatible with what is expected
         by the backend driver for time columns.
         """
-        if value is None:
-            return None
-        return unicode(value)
+        return None if value is None else unicode(value)
 
     def value_to_db_decimal(self, value, max_digits, decimal_places):
         """
@@ -725,9 +718,7 @@ class BaseDatabaseOperations(object):
 
         `value` is an int, containing the looked-up year.
         """
-        first = '%s-01-01 00:00:00'
-        second = '%s-12-31 23:59:59.999999'
-        return [first % value, second % value]
+        return [f'{value}-01-01 00:00:00', f'{value}-12-31 23:59:59.999999']
 
     def year_lookup_bounds_for_date_field(self, value):
         """
@@ -773,7 +764,7 @@ class BaseDatabaseOperations(object):
         can vary between backends (e.g., Oracle with %% and &) and between
         subexpression types (e.g., date expressions)
         """
-        conn = ' %s ' % connector
+        conn = f' {connector} '
         return conn.join(sub_expressions)
 
 class BaseDatabaseIntrospection(object):
@@ -837,14 +828,17 @@ class BaseDatabaseIntrospection(object):
         from django.db import models, router
         all_models = []
         for app in models.get_apps():
-            for model in models.get_models(app):
-                if router.allow_syncdb(self.connection.alias, model):
-                    all_models.append(model)
+            all_models.extend(
+                model
+                for model in models.get_models(app)
+                if router.allow_syncdb(self.connection.alias, model)
+            )
         tables = map(self.table_name_converter, tables)
-        return set([
-            m for m in all_models
+        return {
+            m
+            for m in all_models
             if self.table_name_converter(m._meta.db_table) in tables
-        ])
+        }
 
     def sequence_list(self):
         "Returns a list of information about all DB sequences for all models in all apps."
@@ -864,12 +858,11 @@ class BaseDatabaseIntrospection(object):
                         sequence_list.append({'table': model._meta.db_table, 'column': f.column})
                         break # Only one AutoField is allowed per model, so don't bother continuing.
 
-                for f in model._meta.local_many_to_many:
-                    # If this is an m2m using an intermediate table,
-                    # we don't need to reset the sequence.
-                    if f.rel.through is None:
-                        sequence_list.append({'table': f.m2m_db_table(), 'column': None})
-
+                sequence_list.extend(
+                    {'table': f.m2m_db_table(), 'column': None}
+                    for f in model._meta.local_many_to_many
+                    if f.rel.through is None
+                )
         return sequence_list
 
 class BaseDatabaseClient(object):
@@ -897,4 +890,3 @@ class BaseDatabaseValidation(object):
 
     def validate_field(self, errors, opts, f):
         "By default, there is no backend-specific validation"
-        pass

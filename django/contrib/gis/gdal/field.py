@@ -53,10 +53,18 @@ class Field(GDALBase):
 
     def as_datetime(self):
         "Retrieves the Field's value as a tuple of date & time components."
-        yy, mm, dd, hh, mn, ss, tz = [c_int() for i in range(7)]
-        status = capi.get_field_as_datetime(self._feat, self._index, byref(yy), byref(mm), byref(dd),
-                                            byref(hh), byref(mn), byref(ss), byref(tz))
-        if status:
+        yy, mm, dd, hh, mn, ss, tz = [c_int() for _ in range(7)]
+        if status := capi.get_field_as_datetime(
+            self._feat,
+            self._index,
+            byref(yy),
+            byref(mm),
+            byref(dd),
+            byref(hh),
+            byref(mn),
+            byref(ss),
+            byref(tz),
+        ):
             return (yy, mm, dd, hh, mn, ss, tz)
         else:
             raise OGRException('Unable to retrieve date & time information from the field.')

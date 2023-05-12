@@ -11,7 +11,7 @@ def autodiscover(module_name):
         mod = import_module(app)
         # Attempt to import the app's module.
         try:
-            import_module('%s.%s' % (app, module_name))
+            import_module(f'{app}.{module_name}')
         except:
             # Decide whether to bubble up this error. If the app just
             # doesn't have an module, we can ignore the error

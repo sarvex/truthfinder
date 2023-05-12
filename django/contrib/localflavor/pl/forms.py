@@ -50,16 +50,14 @@ class PLPESELField(RegexField):
             return u''
         if not self.has_valid_checksum(value):
             raise ValidationError(self.error_messages['checksum'])
-        return u'%s' % value
+        return f'{value}'
 
     def has_valid_checksum(self, number):
         """
         Calculates a checksum with the provided algorithm.
         """
         multiple_table = (1, 3, 7, 9, 1, 3, 7, 9, 1, 3, 1)
-        result = 0
-        for i in range(len(number)):
-            result += int(number[i]) * multiple_table[i]
+        result = sum(int(number[i]) * multiple_table[i] for i in range(len(number)))
         return result % 10 == 0
 
 class PLNIPField(RegexField):
@@ -86,22 +84,16 @@ class PLNIPField(RegexField):
         value = re.sub("[-]", "", value)
         if not self.has_valid_checksum(value):
             raise ValidationError(self.error_messages['checksum'])
-        return u'%s' % value
+        return f'{value}'
 
     def has_valid_checksum(self, number):
         """
         Calculates a checksum with the provided algorithm.
         """
         multiple_table = (6, 5, 7, 2, 3, 4, 5, 6, 7)
-        result = 0
-        for i in range(len(number)-1):
-            result += int(number[i]) * multiple_table[i]
-
+        result = sum(int(number[i]) * multiple_table[i] for i in range(len(number)-1))
         result %= 11
-        if result == int(number[-1]):
-            return True
-        else:
-            return False
+        return result == int(number[-1])
 
 class PLREGONField(RegexField):
     """
@@ -125,7 +117,7 @@ class PLREGONField(RegexField):
             return u''
         if not self.has_valid_checksum(value):
             raise ValidationError(self.error_messages['checksum'])
-        return u'%s' % value
+        return f'{value}'
 
     def has_valid_checksum(self, number):
         """
@@ -140,7 +132,7 @@ class PLREGONField(RegexField):
         weights = [table for table in weights if len(table) == len(number)]
 
         for table in weights:
-            checksum = sum([int(n) * w for n, w in zip(number, table)])
+            checksum = sum(int(n) * w for n, w in zip(number, table))
             if checksum % 11 % 10:
                 return False
 

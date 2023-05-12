@@ -31,20 +31,22 @@ class Command(LabelCommand):
         qn = connection.ops.quote_name
         for f in fields:
             field_output = [qn(f.name), f.db_type(connection=connection)]
-            field_output.append("%sNULL" % (not f.null and "NOT " or ""))
+            field_output.append(f'{not f.null and "NOT " or ""}NULL')
             if f.primary_key:
                 field_output.append("PRIMARY KEY")
             elif f.unique:
                 field_output.append("UNIQUE")
             if f.db_index:
-                unique = f.unique and "UNIQUE " or ""
-                index_output.append("CREATE %sINDEX %s ON %s (%s);" % \
-                    (unique, qn('%s_%s' % (tablename, f.name)), qn(tablename),
-                    qn(f.name)))
+                unique = "UNIQUE " if f.unique else ""
+                index_output.append(
+                    f"CREATE {unique}INDEX {qn(f'{tablename}_{f.name}')} ON {qn(tablename)} ({qn(f.name)});"
+                )
             table_output.append(" ".join(field_output))
-        full_statement = ["CREATE TABLE %s (" % qn(tablename)]
-        for i, line in enumerate(table_output):
-            full_statement.append('    %s%s' % (line, i < len(table_output)-1 and ',' or ''))
+        full_statement = [f"CREATE TABLE {qn(tablename)} ("]
+        full_statement.extend(
+            f"    {line}{i < len(table_output) - 1 and ',' or ''}"
+            for i, line in enumerate(table_output)
+        )
         full_statement.append(');')
         curs = connection.cursor()
         curs.execute("\n".join(full_statement))

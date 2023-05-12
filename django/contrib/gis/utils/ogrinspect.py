@@ -27,9 +27,7 @@ def mapping(data_source, geom_name='geom', layer_key=0, multi_geom=False):
     if isinstance(data_source, basestring):
         # Instantiating the DataSource from the string.
         data_source = DataSource(data_source)
-    elif isinstance(data_source, DataSource):
-        pass
-    else:
+    elif not isinstance(data_source, DataSource):
         raise TypeError('Data source parameter must be a string or a DataSource object.')
 
     # Creating the dictionary.
@@ -41,8 +39,7 @@ def mapping(data_source, geom_name='geom', layer_key=0, multi_geom=False):
         if mfield[-1:] == '_': mfield += 'field'
         _mapping[mfield] = field
     gtype = data_source[layer_key].geom_type
-    if multi_geom and gtype.num in (1, 2, 3): prefix = 'MULTI'
-    else: prefix = ''
+    prefix = 'MULTI' if multi_geom and gtype.num in (1, 2, 3) else ''
     _mapping[geom_name] = prefix + str(gtype).upper()
     return _mapping
 
@@ -114,7 +111,7 @@ def ogrinspect(*args, **kwargs):
 
     Note: This routine calls the _ogrinspect() helper to do the heavy lifting.
     """
-    return '\n'.join(s for s in _ogrinspect(*args, **kwargs))
+    return '\n'.join(_ogrinspect(*args, **kwargs))
 
 def _ogrinspect(data_source, model_name, geom_name='geom', layer_key=0, srid=None,
                 multi_geom=False, name_field=None, imports=True,
@@ -145,6 +142,7 @@ def _ogrinspect(data_source, model_name, geom_name='geom', layer_key=0, srid=Non
             return [s.lower() for s in ogr_fields]
         else:
             return []
+
     null_fields = process_kwarg(null)
     blank_fields = process_kwarg(blank)
     decimal_fields = process_kwarg(decimal)
@@ -154,8 +152,7 @@ def _ogrinspect(data_source, model_name, geom_name='geom', layer_key=0, srid=Non
         kwlist = []
         if field_name.lower() in null_fields: kwlist.append('null=True')
         if field_name.lower() in blank_fields: kwlist.append('blank=True')
-        if kwlist: return ', ' + ', '.join(kwlist)
-        else: return ''
+        return ', ' + ', '.join(kwlist) if kwlist else ''
 
     # For those wishing to disable the imports.
     if imports:
@@ -163,7 +160,7 @@ def _ogrinspect(data_source, model_name, geom_name='geom', layer_key=0, srid=Non
         yield 'from django.contrib.gis.db import models'
         yield ''
 
-    yield 'class %s(models.Model):' % model_name
+    yield f'class {model_name}(models.Model):'
 
     for field_name, width, precision, field_type in izip(ogr_fields, layer.field_widths, layer.field_precisions, layer.field_types):
         # The model field name.
@@ -180,24 +177,24 @@ def _ogrinspect(data_source, model_name, geom_name='geom', layer_key=0, srid=Non
             if field_name.lower() in decimal_fields:
                 yield '    %s = models.DecimalField(max_digits=%d, decimal_places=%d%s)' % (mfield, width, precision, kwargs_str)
             else:
-                yield '    %s = models.FloatField(%s)' % (mfield, kwargs_str[2:])
+                yield f'    {mfield} = models.FloatField({kwargs_str[2:]})'
         elif field_type is OFTInteger:
-            yield '    %s = models.IntegerField(%s)' % (mfield, kwargs_str[2:])
+            yield f'    {mfield} = models.IntegerField({kwargs_str[2:]})'
         elif field_type is OFTString:
-            yield '    %s = models.CharField(max_length=%s%s)' % (mfield, width, kwargs_str)
+            yield f'    {mfield} = models.CharField(max_length={width}{kwargs_str})'
         elif field_type is OFTDate:
-            yield '    %s = models.DateField(%s)' % (mfield, kwargs_str[2:])
+            yield f'    {mfield} = models.DateField({kwargs_str[2:]})'
         elif field_type is OFTDateTime:
-            yield '    %s = models.DateTimeField(%s)' % (mfield, kwargs_str[2:])
+            yield f'    {mfield} = models.DateTimeField({kwargs_str[2:]})'
         elif field_type is OFTDate:
-            yield '    %s = models.TimeField(%s)' % (mfield, kwargs_str[2:])
+            yield f'    {mfield} = models.TimeField({kwargs_str[2:]})'
         else:
-            raise TypeError('Unknown field type %s in %s' % (field_type, mfield))
+            raise TypeError(f'Unknown field type {field_type} in {mfield}')
 
     # TODO: Autodetection of multigeometry types (see #7218).
     gtype = layer.geom_type
     if multi_geom and gtype.num in (1, 2, 3):
-        geom_field = 'Multi%s' % gtype.django
+        geom_field = f'Multi{gtype.django}'
     else:
         geom_field = gtype.django
 
@@ -213,13 +210,13 @@ def _ogrinspect(data_source, model_name, geom_name='geom', layer_key=0, srid=Non
                 # WGS84 is already the default.
                 srid_str = ''
             else:
-                srid_str = 'srid=%s' % srid
+                srid_str = f'srid={srid}'
     else:
-        srid_str = 'srid=%s' % srid
+        srid_str = f'srid={srid}'
 
-    yield '    %s = models.%s(%s)' % (geom_name, geom_field, srid_str)
+    yield f'    {geom_name} = models.{geom_field}({srid_str})'
     yield '    objects = models.GeoManager()'
 
     if name_field:
         yield ''
-        yield '    def __unicode__(self): return self.%s' % name_field
+        yield f'    def __unicode__(self): return self.{name_field}'

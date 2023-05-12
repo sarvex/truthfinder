@@ -38,7 +38,7 @@ class SpatiaLiteRelate(SpatiaLiteFunctionParam):
     pattern_regex = re.compile(r'^[012TF\*]{9}$')
     def __init__(self, pattern):
         if not self.pattern_regex.match(pattern):
-            raise ValueError('Invalid intersection matrix pattern "%s".' % pattern)
+            raise ValueError(f'Invalid intersection matrix pattern "{pattern}".')
         super(SpatiaLiteRelate, self).__init__('Relate')
 
 # Valid distance types and substitutions
@@ -146,10 +146,7 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
         """
         Converts geometry WKT returned from a SpatiaLite aggregate.
         """
-        if wkt:
-            return Geometry(wkt, geo_field.srid)
-        else:
-            return None
+        return Geometry(wkt, geo_field.srid) if wkt else None
 
     def geo_db_type(self, f):
         """
@@ -187,7 +184,8 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
         Transform() and GeomFromText() function call(s).
         """
         def transform_value(value, srid):
-            return not (value is None or value.srid == srid)
+            return value is not None and value.srid != srid
+
         if hasattr(value, 'expression'):
             if transform_value(value, f.srid):
                 placeholder = '%s(%%s, %s)' % (self.transform, f.srid)
@@ -210,12 +208,11 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
         """
         cursor = self.connection._cursor()
         try:
-            try:
-                cursor.execute('SELECT %s' % func)
-                row = cursor.fetchone()
-            except:
-                # Responsibility of caller to perform error handling.
-                raise
+            cursor.execute(f'SELECT {func}')
+            row = cursor.fetchone()
+        except:
+            # Responsibility of caller to perform error handling.
+            raise
         finally:
             cursor.close()
         return row[0]
@@ -254,14 +251,12 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
             # exception.
             if version is None: raise
 
-        m = self.version_regex.match(version)
-        if m:
-            major = int(m.group('major'))
-            minor1 = int(m.group('minor1'))
-            minor2 = int(m.group('minor2'))
-        else:
-            raise Exception('Could not parse SpatiaLite version string: %s' % version)
+        if not (m := self.version_regex.match(version)):
+            raise Exception(f'Could not parse SpatiaLite version string: {version}')
 
+        major = int(m.group('major'))
+        minor1 = int(m.group('minor1'))
+        minor2 = int(m.group('minor2'))
         return (version, major, minor1, minor2)
 
     def spatial_aggregate_sql(self, agg):
@@ -271,7 +266,9 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
         """
         agg_name = agg.__class__.__name__
         if not self.check_aggregate_support(agg):
-            raise NotImplementedError('%s spatial aggregate is not implmented for this backend.' % agg_name)
+            raise NotImplementedError(
+                f'{agg_name} spatial aggregate is not implmented for this backend.'
+            )
         agg_name = agg_name.lower()
         if agg_name == 'union': agg_name += 'agg'
         sql_template = self.select % '%(function)s(%(field)s)'
@@ -287,7 +284,7 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
         alias, col, db_type = lvalue
 
         # Getting the quoted field as `geo_col`.
-        geo_col = '%s.%s' % (qn(alias), qn(col))
+        geo_col = f'{qn(alias)}.{qn(col)}'
 
         if lookup_type in self.geometry_functions:
             # See if a SpatiaLite geometry function matches the lookup type.
@@ -303,18 +300,22 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
 
                 # Ensuring that a tuple _value_ was passed in from the user
                 if not isinstance(value, (tuple, list)):
-                    raise ValueError('Tuple required for `%s` lookup type.' % lookup_type)
+                    raise ValueError(f'Tuple required for `{lookup_type}` lookup type.')
 
                 # Geometry is first element of lookup tuple.
                 geom = value[0]
 
                 # Number of valid tuple parameters depends on the lookup type.
                 if len(value) != 2:
-                    raise ValueError('Incorrect number of parameters given for `%s` lookup type.' % lookup_type)
+                    raise ValueError(
+                        f'Incorrect number of parameters given for `{lookup_type}` lookup type.'
+                    )
 
                 # Ensuring the argument type matches what we expect.
                 if not isinstance(value[1], arg_type):
-                    raise ValueError('Argument type should be %s, got %s instead.' % (arg_type, type(value[1])))
+                    raise ValueError(
+                        f'Argument type should be {arg_type}, got {type(value[1])} instead.'
+                    )
 
                 # For lookup type `relate`, the op instance is not yet created (has
                 # to be instantiated here to check the pattern parameter).
@@ -329,9 +330,9 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):
             return op.as_sql(geo_col, self.get_geom_placeholder(field, geom))
         elif lookup_type == 'isnull':
             # Handling 'isnull' lookup type
-            return "%s IS %sNULL" % (geo_col, (not value and 'NOT ' or ''))
+            return f"{geo_col} IS {not value and 'NOT ' or ''}NULL"
 
-        raise TypeError("Got invalid lookup_type: %s" % repr(lookup_type))
+        raise TypeError(f"Got invalid lookup_type: {repr(lookup_type)}")
 
     # Routines for getting the OGC-compliant models.
     def geometry_columns(self):

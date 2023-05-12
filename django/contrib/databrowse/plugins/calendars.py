@@ -25,21 +25,21 @@ class CalendarPlugin(DatabrowsePlugin):
             return dict([(f.name, f) for f in model._meta.fields if isinstance(f, models.DateField) and f.name in self.field_names])
 
     def model_index_html(self, request, model, site):
-        fields = self.field_dict(model)
-        if not fields:
+        if fields := self.field_dict(model):
+            return mark_safe(
+                f"""<p class="filter"><strong>View calendar by:</strong> {', '.join([f'<a href="calendars/{f.name}/">{force_unicode(capfirst(f.verbose_name))}</a>' for f in fields.values()])}</p>"""
+            )
+        else:
             return u''
-        return mark_safe(u'<p class="filter"><strong>View calendar by:</strong> %s</p>' % \
-            u', '.join(['<a href="calendars/%s/">%s</a>' % (f.name, force_unicode(capfirst(f.verbose_name))) for f in fields.values()]))
 
     def urls(self, plugin_name, easy_instance_field):
         if isinstance(easy_instance_field.field, models.DateField):
             d = easy_instance_field.raw_value
-            return [mark_safe(u'%s%s/%s/%s/%s/%s/' % (
-                easy_instance_field.model.url(),
-                plugin_name, easy_instance_field.field.name,
-                str(d.year),
-                datetime_safe.new_date(d).strftime('%b').lower(),
-                d.day))]
+            return [
+                mark_safe(
+                    f"{easy_instance_field.model.url()}{plugin_name}/{easy_instance_field.field.name}/{str(d.year)}/{datetime_safe.new_date(d).strftime('%b').lower()}/{d.day}/"
+                )
+            ]
 
     def model_view(self, request, model_databrowse, url):
         self.model, self.site = model_databrowse.model, model_databrowse.site
@@ -83,4 +83,4 @@ class CalendarPlugin(DatabrowsePlugin):
             return date_based.archive_index(request, queryset, field.name,
                 template_name='databrowse/calendar_main.html', allow_empty=True, allow_future=True,
                 extra_context=extra_context)
-        assert False, ('%s, %s, %s, %s' % (field, year, month, day))
+        assert False, f'{field}, {year}, {month}, {day}'

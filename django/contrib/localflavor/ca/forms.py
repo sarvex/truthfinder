@@ -42,9 +42,8 @@ class CAPhoneNumberField(Field):
         if value in EMPTY_VALUES:
             return u''
         value = re.sub('(\(|\)|\s+)', '', smart_unicode(value))
-        m = phone_digits_re.search(value)
-        if m:
-            return u'%s-%s-%s' % (m.group(1), m.group(2), m.group(3))
+        if m := phone_digits_re.search(value):
+            return f'{m.group(1)}-{m.group(2)}-{m.group(3)}'
         raise ValidationError(self.error_messages['invalid'])
 
 class CAProvinceField(Field):
@@ -105,8 +104,8 @@ class CASocialInsuranceNumberField(Field):
         if not match:
             raise ValidationError(self.error_messages['invalid'])
 
-        number = u'%s-%s-%s' % (match.group(1), match.group(2), match.group(3))
-        check_number = u'%s%s%s' % (match.group(1), match.group(2), match.group(3))
+        number = f'{match[1]}-{match[2]}-{match[3]}'
+        check_number = f'{match[1]}{match[2]}{match[3]}'
         if not self.luhn_checksum_is_valid(check_number):
             raise ValidationError(self.error_messages['invalid'])
         return number
@@ -125,9 +124,9 @@ class CASocialInsuranceNumberField(Field):
             digit = int(number[count])
 
             if not (( count & 1 ) ^ oddeven ):
-                digit = digit * 2
+                digit *= 2
             if digit > 9:
-                digit = digit - 9
+                digit -= 9
 
             sum = sum + digit
 

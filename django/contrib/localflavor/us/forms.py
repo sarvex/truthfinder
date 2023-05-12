@@ -31,9 +31,8 @@ class USPhoneNumberField(CharField):
         if value in EMPTY_VALUES:
             return u''
         value = re.sub('(\(|\)|\s+)', '', smart_unicode(value))
-        m = phone_digits_re.search(value)
-        if m:
-            return u'%s-%s-%s' % (m.group(1), m.group(2), m.group(3))
+        if m := phone_digits_re.search(value):
+            return f'{m.group(1)}-{m.group(2)}-{m.group(3)}'
         raise ValidationError(self.error_messages['invalid'])
 
 class USSocialSecurityNumberField(Field):
@@ -66,17 +65,17 @@ class USSocialSecurityNumberField(Field):
 
         # First pass: no blocks of all zeroes.
         if area == '000' or \
-           group == '00' or \
-           serial == '0000':
+               group == '00' or \
+               serial == '0000':
             raise ValidationError(self.error_messages['invalid'])
 
         # Second pass: promotional and otherwise permanently invalid numbers.
         if area == '666' or \
-           (area == '987' and group == '65' and 4320 <= int(serial) <= 4329) or \
-           value == '078-05-1120' or \
-           value == '219-09-9999':
+               (area == '987' and group == '65' and 4320 <= int(serial) <= 4329) or \
+               value == '078-05-1120' or \
+               value == '219-09-9999':
             raise ValidationError(self.error_messages['invalid'])
-        return u'%s-%s-%s' % (area, group, serial)
+        return f'{area}-{group}-{serial}'
 
 class USStateField(Field):
     """

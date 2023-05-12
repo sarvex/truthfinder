@@ -38,7 +38,7 @@ class GeometryColumns(models.Model):
         return 'column_name'
 
     def __unicode__(self):
-        return '%s - %s (SRID: %s)' % (self.table_name, self.column_name, self.srid)
+        return f'{self.table_name} - {self.column_name} (SRID: {self.srid})'
 
 class SpatialRefSys(models.Model, SpatialRefSysMixin):
     "Maps to the Oracle MDSYS.CS_SRS table."

@@ -8,7 +8,7 @@ class ArgsCommand(BaseCommand):
 
     def handle(self, *args, **options):
         if not args:
-            raise CommandError('Must provide the following arguments: %s' % self.args)
+            raise CommandError(f'Must provide the following arguments: {self.args}')
         return self.handle_args(*args, **options)
 
     def handle_args(self, *args, **options):

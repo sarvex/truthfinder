@@ -27,11 +27,12 @@ class FieldChoicePlugin(DatabrowsePlugin):
             return dict([(f.name, f) for f in model._meta.fields if not f.rel and not f.primary_key and not f.unique and not isinstance(f, (models.AutoField, models.TextField))])
 
     def model_index_html(self, request, model, site):
-        fields = self.field_dict(model)
-        if not fields:
+        if fields := self.field_dict(model):
+            return mark_safe(
+                f"""<p class="filter"><strong>View by:</strong> {', '.join([f'<a href="fields/{f.name}/">{force_unicode(capfirst(f.verbose_name))}</a>' for f in fields.values()])}</p>"""
+            )
+        else:
             return u''
-        return mark_safe(u'<p class="filter"><strong>View by:</strong> %s</p>' % \
-            u', '.join(['<a href="fields/%s/">%s</a>' % (f.name, force_unicode(capfirst(f.verbose_name))) for f in fields.values()]))
 
     def urls(self, plugin_name, easy_instance_field):
         if easy_instance_field.field in self.field_dict(easy_instance_field.model.model).values():

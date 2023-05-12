@@ -78,9 +78,16 @@ class ESIdentityCardNumberField(RegexField):
         self.cif_types = 'ABCDEFGHKLMNPQS'
         self.nie_types = 'XT'
         id_card_re = re.compile(r'^([%s]?)[ -]?(\d+)[ -]?([%s]?)$' % (self.cif_types + self.nie_types, self.nif_control + self.cif_control), re.IGNORECASE)
-        super(ESIdentityCardNumberField, self).__init__(id_card_re, max_length=None, min_length=None,
-                error_message=self.default_error_messages['invalid%s' % (self.only_nif and '_only_nif' or '')],
-                *args, **kwargs)
+        super(ESIdentityCardNumberField, self).__init__(
+            id_card_re,
+            max_length=None,
+            min_length=None,
+            error_message=self.default_error_messages[
+                f"invalid{self.only_nif and '_only_nif' or ''}"
+            ],
+            *args,
+            **kwargs,
+        )
 
     def clean(self, value):
         super(ESIdentityCardNumberField, self).clean(value)
@@ -104,7 +111,11 @@ class ESIdentityCardNumberField(RegexField):
                 return value
             else:
                 raise ValidationError(self.error_messages['invalid_nie'])
-        elif not self.only_nif and letter1 in self.cif_types and len(number) in [7, 8]:
+        elif (
+            not self.only_nif
+            and letter1 in self.cif_types
+            and len(number) in {7, 8}
+        ):
             # CIF
             if not letter2:
                 number, letter2 = number[:-1], int(number[-1])
@@ -155,8 +166,19 @@ class ESCCCField(RegexField):
         control_str = [1, 2, 4, 8, 5, 10, 9, 7, 3, 6]
         m = re.match(r'^(\d{4})[ -]?(\d{4})[ -]?(\d{2})[ -]?(\d{10})$', value)
         entity, office, checksum, account = m.groups()
-        get_checksum = lambda d: str(11 - sum([int(digit) * int(control) for digit, control in zip(d, control_str)]) % 11).replace('10', '1').replace('11', '0')
-        if get_checksum('00' + entity + office) + get_checksum(account) == checksum:
+        get_checksum = (
+            lambda d: str(
+                11
+                - sum(
+                    int(digit) * int(control)
+                    for digit, control in zip(d, control_str)
+                )
+                % 11
+            )
+            .replace('10', '1')
+            .replace('11', '0')
+        )
+        if get_checksum(f'00{entity}{office}') + get_checksum(account) == checksum:
             return value
         else:
             raise ValidationError(self.error_messages['checksum'])
@@ -179,7 +201,11 @@ class ESProvinceSelect(Select):
 
 
 def cif_get_checksum(number):
-    s1 = sum([int(digit) for pos, digit in enumerate(number) if int(pos) % 2])
-    s2 = sum([sum([int(unit) for unit in str(int(digit) * 2)]) for pos, digit in enumerate(number) if not int(pos) % 2])
+    s1 = sum(int(digit) for pos, digit in enumerate(number) if int(pos) % 2)
+    s2 = sum(
+        sum(int(unit) for unit in str(int(digit) * 2))
+        for pos, digit in enumerate(number)
+        if not int(pos) % 2
+    )
     return (10 - ((s1 + s2) % 10)) % 10
 

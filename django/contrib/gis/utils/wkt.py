@@ -31,25 +31,25 @@ def precision_wkt(geom, prec):
         return ','.join([coord_fmt % c[:2] for c in coords])
 
     def formatted_poly(poly):
-        return ','.join(['(%s)' % formatted_coords(r) for r in poly])
+        return ','.join([f'({formatted_coords(r)})' for r in poly])
 
     def formatted_geom(g):
         gtype = str(g.geom_type).upper()
-        yield '%s(' % gtype
+        yield f'{gtype}('
         if gtype == 'POINT':
             yield formatted_coords((g.coords,))
-        elif gtype in ('LINESTRING', 'LINEARRING'):
+        elif gtype in {'LINESTRING', 'LINEARRING'}:
             yield formatted_coords(g.coords)
-        elif gtype in ('POLYGON', 'MULTILINESTRING'):
+        elif gtype in {'POLYGON', 'MULTILINESTRING'}:
             yield formatted_poly(g)
         elif gtype == 'MULTIPOINT':
             yield formatted_coords(g.coords)
         elif gtype == 'MULTIPOLYGON':
-            yield ','.join(['(%s)' % formatted_poly(p) for p in g])
+            yield ','.join([f'({formatted_poly(p)})' for p in g])
         elif gtype == 'GEOMETRYCOLLECTION':
-            yield ','.join([''.join([wkt for wkt in formatted_geom(child)]) for child in g])
+            yield ','.join([''.join(list(formatted_geom(child))) for child in g])
         else:
             raise TypeError
         yield ')'
 
-    return ''.join([wkt for wkt in formatted_geom(geom)])
+    return ''.join(list(formatted_geom(geom)))

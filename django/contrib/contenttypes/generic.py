@@ -30,7 +30,7 @@ class GenericForeignKey(object):
     def contribute_to_class(self, cls, name):
         self.name = name
         self.model = cls
-        self.cache_attr = "_%s_cache" % name
+        self.cache_attr = f"_{name}_cache"
         cls._meta.add_virtual_field(self)
 
         # For some reason I don't totally understand, using weakrefs here doesn't work.
@@ -75,8 +75,7 @@ class GenericForeignKey(object):
             # the naive ``getattr(instance, self.ct_field)``, but has better
             # performance when dealing with GFKs in loops and such.
             f = self.model._meta.get_field(self.ct_field)
-            ct_id = getattr(instance, f.get_attname(), None)
-            if ct_id:
+            if ct_id := getattr(instance, f.get_attname(), None):
                 ct = self.get_content_type(id=ct_id, using=instance._state.db)
                 try:
                     rel_obj = ct.get_object_for_this_type(pk=getattr(instance, self.fk_field))
@@ -87,7 +86,9 @@ class GenericForeignKey(object):
 
     def __set__(self, instance, value):
         if instance is None:
-            raise AttributeError(u"%s must be accessed via instance" % self.related.opts.object_name)
+            raise AttributeError(
+                f"{self.related.opts.object_name} must be accessed via instance"
+            )
 
         ct = None
         fk = None
@@ -174,20 +175,23 @@ class GenericRelation(RelatedField, Field):
         ContentType = get_model("contenttypes", "contenttype")
         content_type = ContentType.objects.get_for_model(self.model)
         prefix = "__".join(pieces[:pos + 1])
-        return [("%s__%s" % (prefix, self.content_type_field_name),
-            content_type)]
+        return [(f"{prefix}__{self.content_type_field_name}", content_type)]
 
     def bulk_related_objects(self, objs, using=DEFAULT_DB_ALIAS):
         """
         Return all objects related to ``objs`` via this ``GenericRelation``.
 
         """
-        return self.rel.to._base_manager.db_manager(using).filter(**{
-                "%s__pk" % self.content_type_field_name:
-                    ContentType.objects.db_manager(using).get_for_model(self.model).pk,
-                "%s__in" % self.object_id_field_name:
-                    [obj.pk for obj in objs]
-                })
+        return self.rel.to._base_manager.db_manager(using).filter(
+            **{
+                f"{self.content_type_field_name}__pk": ContentType.objects.db_manager(
+                    using
+                )
+                .get_for_model(self.model)
+                .pk,
+                f"{self.object_id_field_name}__in": [obj.pk for obj in objs],
+            }
+        )
 
 
 class ReverseGenericRelatedObjectsDescriptor(object):
@@ -217,19 +221,21 @@ class ReverseGenericRelatedObjectsDescriptor(object):
 
         qn = connection.ops.quote_name
 
-        manager = RelatedManager(
-            model = rel_model,
-            instance = instance,
-            symmetrical = (self.field.rel.symmetrical and instance.__class__ == rel_model),
-            join_table = qn(self.field.m2m_db_table()),
-            source_col_name = qn(self.field.m2m_column_name()),
-            target_col_name = qn(self.field.m2m_reverse_name()),
-            content_type = ContentType.objects.db_manager(instance._state.db).get_for_model(instance),
-            content_type_field_name = self.field.content_type_field_name,
-            object_id_field_name = self.field.object_id_field_name
+        return RelatedManager(
+            model=rel_model,
+            instance=instance,
+            symmetrical=(
+                self.field.rel.symmetrical and instance.__class__ == rel_model
+            ),
+            join_table=qn(self.field.m2m_db_table()),
+            source_col_name=qn(self.field.m2m_column_name()),
+            target_col_name=qn(self.field.m2m_reverse_name()),
+            content_type=ContentType.objects.db_manager(
+                instance._state.db
+            ).get_for_model(instance),
+            content_type_field_name=self.field.content_type_field_name,
+            object_id_field_name=self.field.object_id_field_name,
         )
-
-        return manager
 
     def __set__(self, instance, value):
         if instance is None:
@@ -245,6 +251,8 @@ def create_generic_related_manager(superclass):
     Factory function for a manager that subclasses 'superclass' (which is a
     Manager) and adds behavior for generic related objects.
     """
+
+
 
     class GenericRelatedObjectManager(superclass):
         def __init__(self, model=None, core_filters=None, instance=None, symmetrical=None,
@@ -268,30 +276,33 @@ def create_generic_related_manager(superclass):
         def get_query_set(self):
             db = self._db or router.db_for_read(self.model, instance=self.instance)
             query = {
-                '%s__pk' % self.content_type_field_name : self.content_type.id,
-                '%s__exact' % self.object_id_field_name : self.pk_val,
+                f'{self.content_type_field_name}__pk': self.content_type.id,
+                f'{self.object_id_field_name}__exact': self.pk_val,
             }
             return superclass.get_query_set(self).using(db).filter(**query)
 
         def add(self, *objs):
             for obj in objs:
                 if not isinstance(obj, self.model):
-                    raise TypeError("'%s' instance expected" % self.model._meta.object_name)
+                    raise TypeError(f"'{self.model._meta.object_name}' instance expected")
                 setattr(obj, self.content_type_field_name, self.content_type)
                 setattr(obj, self.object_id_field_name, self.pk_val)
                 obj.save()
+
         add.alters_data = True
 
         def remove(self, *objs):
             db = router.db_for_write(self.model, instance=self.instance)
             for obj in objs:
                 obj.delete(using=db)
+
         remove.alters_data = True
 
         def clear(self):
             db = router.db_for_write(self.model, instance=self.instance)
             for obj in self.all():
                 obj.delete(using=db)
+
         clear.alters_data = True
 
         def create(self, **kwargs):
@@ -299,7 +310,9 @@ def create_generic_related_manager(superclass):
             kwargs[self.object_id_field_name] = self.pk_val
             db = router.db_for_write(self.model, instance=self.instance)
             return super(GenericRelatedObjectManager, self).using(db).create(**kwargs)
+
         create.alters_data = True
+
 
     return GenericRelatedObjectManager
 
@@ -342,11 +355,16 @@ class BaseGenericInlineFormSet(BaseModelFormSet):
         )
 
     #@classmethod
-    def get_default_prefix(cls):
-        opts = cls.model._meta
-        return '-'.join((opts.app_label, opts.object_name.lower(),
-                        cls.ct_field.name, cls.ct_fk_field.name,
-        ))
+    def get_default_prefix(self):
+        opts = self.model._meta
+        return '-'.join(
+            (
+                opts.app_label,
+                opts.object_name.lower(),
+                self.ct_field.name,
+                self.ct_fk_field.name,
+            )
+        )
     get_default_prefix = classmethod(get_default_prefix)
 
     def save_new(self, form, commit=True):
@@ -378,7 +396,7 @@ def generic_inlineformset_factory(model, form=ModelForm,
     # if there is no field called `ct_field` let the exception propagate
     ct_field = opts.get_field(ct_field)
     if not isinstance(ct_field, models.ForeignKey) or ct_field.rel.to != ContentType:
-        raise Exception("fk_name '%s' is not a ForeignKey to ContentType" % ct_field)
+        raise Exception(f"fk_name '{ct_field}' is not a ForeignKey to ContentType")
     fk_field = opts.get_field(fk_field) # let the exception propagate
     if exclude is not None:
         exclude = list(exclude)
@@ -404,10 +422,7 @@ class GenericInlineModelAdmin(InlineModelAdmin):
             fields = flatten_fieldsets(self.declared_fieldsets)
         else:
             fields = None
-        if self.exclude is None:
-            exclude = []
-        else:
-            exclude = list(self.exclude)
+        exclude = [] if self.exclude is None else list(self.exclude)
         exclude.extend(self.get_readonly_fields(request, obj))
         exclude = exclude or None
         defaults = {

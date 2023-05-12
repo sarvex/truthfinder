@@ -54,17 +54,13 @@ def make_msgid(idstring=None):
         # No getpid() in Jython, for example.
         pid = 1
     randint = random.randrange(100000)
-    if idstring is None:
-        idstring = ''
-    else:
-        idstring = '.' + idstring
+    idstring = '' if idstring is None else f'.{idstring}'
     idhost = DNS_NAME
-    msgid = '<%s.%s.%s%s@%s>' % (utcdate, pid, randint, idstring, idhost)
-    return msgid
+    return f'<{utcdate}.{pid}.{randint}{idstring}@{idhost}>'
 
 
 # Header names that contain structured address data (RFC #5322)
-ADDRESS_HEADERS = set([
+ADDRESS_HEADERS = {
     'from',
     'sender',
     'reply-to',
@@ -76,7 +72,7 @@ ADDRESS_HEADERS = set([
     'resent-to',
     'resent-cc',
     'resent-bcc',
-])
+}
 
 
 def forbid_multi_line_headers(name, val, encoding):
@@ -310,8 +306,8 @@ class EmailMessage(object):
         """
         if mimetype is None:
             mimetype, _ = mimetypes.guess_type(filename)
-            if mimetype is None:
-                mimetype = DEFAULT_ATTACHMENT_MIME_TYPE
+        if mimetype is None:
+            mimetype = DEFAULT_ATTACHMENT_MIME_TYPE
         attachment = self._create_mime_attachment(content, mimetype)
         if filename:
             attachment.add_header('Content-Disposition', 'attachment',

@@ -23,9 +23,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         # http://www.postgresql.org/docs/8.0/static/functions-datetime.html#FUNCTIONS-DATETIME-EXTRACT
         if lookup_type == 'week_day':
             # For consistency across backends, we return Sunday=1, Saturday=7.
-            return "EXTRACT('dow' FROM %s) + 1" % field_name
+            return f"EXTRACT('dow' FROM {field_name}) + 1"
         else:
-            return "EXTRACT('%s' FROM %s)" % (lookup_type, field_name)
+            return f"EXTRACT('{lookup_type}' FROM {field_name})"
 
     def date_interval_sql(self, sql, connector, timedelta):
         """
@@ -35,18 +35,18 @@ class DatabaseOperations(BaseDatabaseOperations):
         """
         modifiers = []
         if timedelta.days:
-            modifiers.append(u'%s days' % timedelta.days)
+            modifiers.append(f'{timedelta.days} days')
         if timedelta.seconds:
-            modifiers.append(u'%s seconds' % timedelta.seconds)
+            modifiers.append(f'{timedelta.seconds} seconds')
         if timedelta.microseconds:
-            modifiers.append(u'%s microseconds' % timedelta.microseconds)
+            modifiers.append(f'{timedelta.microseconds} microseconds')
         mods = u' '.join(modifiers)
-        conn = u' %s ' % connector
+        conn = f' {connector} '
         return u'(%s)' % conn.join([sql, u'interval \'%s\'' % mods])
 
     def date_trunc_sql(self, lookup_type, field_name):
         # http://www.postgresql.org/docs/8.0/static/functions-datetime.html#FUNCTIONS-DATETIME-TRUNC
-        return "DATE_TRUNC('%s', %s)" % (lookup_type, field_name)
+        return f"DATE_TRUNC('{lookup_type}', {field_name})"
 
     def deferrable_sql(self):
         return " DEFERRABLE INITIALLY DEFERRED"
@@ -61,67 +61,59 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         # Use UPPER(x) for case-insensitive lookups; it's faster.
         if lookup_type in ('iexact', 'icontains', 'istartswith', 'iendswith'):
-            lookup = 'UPPER(%s)' % lookup
+            lookup = f'UPPER({lookup})'
 
         return lookup
 
     def field_cast_sql(self, db_type):
-        if db_type == 'inet':
-            return 'HOST(%s)'
-        return '%s'
+        return 'HOST(%s)' if db_type == 'inet' else '%s'
 
     def last_insert_id(self, cursor, table_name, pk_name):
         # Use pg_get_serial_sequence to get the underlying sequence name
         # from the table name and column name (available since PostgreSQL 8)
-        cursor.execute("SELECT CURRVAL(pg_get_serial_sequence('%s','%s'))" % (
-            self.quote_name(table_name), pk_name))
+        cursor.execute(
+            f"SELECT CURRVAL(pg_get_serial_sequence('{self.quote_name(table_name)}','{pk_name}'))"
+        )
         return cursor.fetchone()[0]
 
     def no_limit_value(self):
         return None
 
     def quote_name(self, name):
-        if name.startswith('"') and name.endswith('"'):
-            return name # Quoting once is enough.
-        return '"%s"' % name
+        return name if name.startswith('"') and name.endswith('"') else f'"{name}"'
 
     def sql_flush(self, style, tables, sequences):
-        if tables:
-            if self.postgres_version[0:2] >= (8,1):
+        if not tables:
+            return []
+        if self.postgres_version[:2] >= (8, 1):
                 # Postgres 8.1+ can do 'TRUNCATE x, y, z...;'. In fact, it *has to*
                 # in order to be able to truncate tables referenced by a foreign
                 # key in any other table. The result is a single SQL TRUNCATE
                 # statement.
-                sql = ['%s %s;' % \
-                    (style.SQL_KEYWORD('TRUNCATE'),
-                     style.SQL_FIELD(', '.join([self.quote_name(table) for table in tables]))
-                )]
-            else:
+            sql = [
+                f"{style.SQL_KEYWORD('TRUNCATE')} {style.SQL_FIELD(', '.join([self.quote_name(table) for table in tables]))};"
+            ]
+        else:
                 # Older versions of Postgres can't do TRUNCATE in a single call, so
                 # they must use a simple delete.
-                sql = ['%s %s %s;' % \
-                        (style.SQL_KEYWORD('DELETE'),
-                         style.SQL_KEYWORD('FROM'),
-                         style.SQL_FIELD(self.quote_name(table))
-                         ) for table in tables]
+            sql = [
+                f"{style.SQL_KEYWORD('DELETE')} {style.SQL_KEYWORD('FROM')} {style.SQL_FIELD(self.quote_name(table))};"
+                for table in tables
+            ]
 
             # 'ALTER SEQUENCE sequence_name RESTART WITH 1;'... style SQL statements
             # to reset sequence indices
-            for sequence_info in sequences:
-                table_name = sequence_info['table']
-                column_name = sequence_info['column']
-                if not (column_name and len(column_name) > 0):
-                    # This will be the case if it's an m2m using an autogenerated
-                    # intermediate table (see BaseDatabaseIntrospection.sequence_list)
-                    column_name = 'id'
-                sql.append("%s setval(pg_get_serial_sequence('%s','%s'), 1, false);" % \
-                    (style.SQL_KEYWORD('SELECT'),
-                    style.SQL_TABLE(self.quote_name(table_name)),
-                    style.SQL_FIELD(column_name))
-                )
-            return sql
-        else:
-            return []
+        for sequence_info in sequences:
+            table_name = sequence_info['table']
+            column_name = sequence_info['column']
+            if not (column_name and len(column_name) > 0):
+                # This will be the case if it's an m2m using an autogenerated
+                # intermediate table (see BaseDatabaseIntrospection.sequence_list)
+                column_name = 'id'
+            sql.append(
+                f"{style.SQL_KEYWORD('SELECT')} setval(pg_get_serial_sequence('{style.SQL_TABLE(self.quote_name(table_name))}','{style.SQL_FIELD(column_name)}'), 1, false);"
+            )
+        return sql
 
     def sequence_reset_sql(self, style, model_list):
         from django.db import models
@@ -136,37 +128,25 @@ class DatabaseOperations(BaseDatabaseOperations):
 
             for f in model._meta.local_fields:
                 if isinstance(f, models.AutoField):
-                    output.append("%s setval(pg_get_serial_sequence('%s','%s'), coalesce(max(%s), 1), max(%s) %s null) %s %s;" % \
-                        (style.SQL_KEYWORD('SELECT'),
-                        style.SQL_TABLE(qn(model._meta.db_table)),
-                        style.SQL_FIELD(f.column),
-                        style.SQL_FIELD(qn(f.column)),
-                        style.SQL_FIELD(qn(f.column)),
-                        style.SQL_KEYWORD('IS NOT'),
-                        style.SQL_KEYWORD('FROM'),
-                        style.SQL_TABLE(qn(model._meta.db_table))))
+                    output.append(
+                        f"{style.SQL_KEYWORD('SELECT')} setval(pg_get_serial_sequence('{style.SQL_TABLE(qn(model._meta.db_table))}','{style.SQL_FIELD(f.column)}'), coalesce(max({style.SQL_FIELD(qn(f.column))}), 1), max({style.SQL_FIELD(qn(f.column))}) {style.SQL_KEYWORD('IS NOT')} null) {style.SQL_KEYWORD('FROM')} {style.SQL_TABLE(qn(model._meta.db_table))};"
+                    )
                     break # Only one AutoField is allowed per model, so don't bother continuing.
-            for f in model._meta.many_to_many:
-                if not f.rel.through:
-                    output.append("%s setval(pg_get_serial_sequence('%s','%s'), coalesce(max(%s), 1), max(%s) %s null) %s %s;" % \
-                        (style.SQL_KEYWORD('SELECT'),
-                        style.SQL_TABLE(qn(f.m2m_db_table())),
-                        style.SQL_FIELD('id'),
-                        style.SQL_FIELD(qn('id')),
-                        style.SQL_FIELD(qn('id')),
-                        style.SQL_KEYWORD('IS NOT'),
-                        style.SQL_KEYWORD('FROM'),
-                        style.SQL_TABLE(qn(f.m2m_db_table()))))
+            output.extend(
+                f"{style.SQL_KEYWORD('SELECT')} setval(pg_get_serial_sequence('{style.SQL_TABLE(qn(f.m2m_db_table()))}','{style.SQL_FIELD('id')}'), coalesce(max({style.SQL_FIELD(qn('id'))}), 1), max({style.SQL_FIELD(qn('id'))}) {style.SQL_KEYWORD('IS NOT')} null) {style.SQL_KEYWORD('FROM')} {style.SQL_TABLE(qn(f.m2m_db_table()))};"
+                for f in model._meta.many_to_many
+                if not f.rel.through
+            )
         return output
 
     def savepoint_create_sql(self, sid):
-        return "SAVEPOINT %s" % sid
+        return f"SAVEPOINT {sid}"
 
     def savepoint_commit_sql(self, sid):
-        return "RELEASE SAVEPOINT %s" % sid
+        return f"RELEASE SAVEPOINT {sid}"
 
     def savepoint_rollback_sql(self, sid):
-        return "ROLLBACK TO SAVEPOINT %s" % sid
+        return f"ROLLBACK TO SAVEPOINT {sid}"
 
     def prep_for_iexact_query(self, x):
         return x
@@ -181,14 +161,24 @@ class DatabaseOperations(BaseDatabaseOperations):
         under Postgres 8.2 - 8.2.4 is known to be faulty. Raise
         NotImplementedError if this is the database in use.
         """
-        if aggregate.sql_function in ('STDDEV_POP', 'STDDEV_SAMP', 'VAR_POP', 'VAR_SAMP'):
-            if self.postgres_version[0:2] < (8,2):
-                raise NotImplementedError('PostgreSQL does not support %s prior to version 8.2. Please upgrade your version of PostgreSQL.' % aggregate.sql_function)
+        if aggregate.sql_function in (
+            'STDDEV_POP',
+            'STDDEV_SAMP',
+            'VAR_POP',
+            'VAR_SAMP',
+        ) and self.postgres_version[:2] < (8, 2):
+            raise NotImplementedError(
+                f'PostgreSQL does not support {aggregate.sql_function} prior to version 8.2. Please upgrade your version of PostgreSQL.'
+            )
 
-        if aggregate.sql_function in ('STDDEV_POP', 'VAR_POP'):
-            if self.postgres_version[0:2] == (8,2):
-                if self.postgres_version[2] is None or self.postgres_version[2] <= 4:
-                    raise NotImplementedError('PostgreSQL 8.2 to 8.2.4 is known to have a faulty implementation of %s. Please upgrade your version of PostgreSQL.' % aggregate.sql_function)
+        if (
+            aggregate.sql_function in ('STDDEV_POP', 'VAR_POP')
+            and self.postgres_version[:2] == (8, 2)
+            and (self.postgres_version[2] is None or self.postgres_version[2] <= 4)
+        ):
+            raise NotImplementedError(
+                f'PostgreSQL 8.2 to 8.2.4 is known to have a faulty implementation of {aggregate.sql_function}. Please upgrade your version of PostgreSQL.'
+            )
 
     def max_name_length(self):
         """

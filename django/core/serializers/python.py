@@ -49,13 +49,12 @@ class Serializer(base.Serializer):
         if related is not None:
             if self.use_natural_keys and hasattr(related, 'natural_key'):
                 related = related.natural_key()
+            elif field.rel.field_name == related._meta.pk.name:
+                # Related to remote object via primary key
+                related = related._get_pk_val()
             else:
-                if field.rel.field_name == related._meta.pk.name:
-                    # Related to remote object via primary key
-                    related = related._get_pk_val()
-                else:
-                    # Related to remote object via other field
-                    related = smart_unicode(getattr(related, field.rel.field_name), strings_only=True)
+                # Related to remote object via other field
+                related = smart_unicode(getattr(related, field.rel.field_name), strings_only=True)
         self._current[field.name] = related
 
     def handle_m2m_field(self, obj, field):
@@ -66,8 +65,9 @@ class Serializer(base.Serializer):
                            for related in getattr(obj, field.name).iterator()]
             elif field.rel.get_related_field().primary_key:
                 m2m_value = lambda value: smart_unicode(
-                    getattr(value, related_query.target_field_name + '_id'),
-                    strings_only=True)
+                    getattr(value, f'{related_query.target_field_name}_id'),
+                    strings_only=True,
+                )
                 related_query = getattr(obj, field.name)
                 filters = {related_query.source_field_name: obj._get_pk_val()}
                 query = field.rel.through.objects.filter(**filters)
@@ -151,5 +151,7 @@ def _get_model(model_identifier):
     except TypeError:
         Model = None
     if Model is None:
-        raise base.DeserializationError(u"Invalid model identifier: '%s'" % model_identifier)
+        raise base.DeserializationError(
+            f"Invalid model identifier: '{model_identifier}'"
+        )
     return Model

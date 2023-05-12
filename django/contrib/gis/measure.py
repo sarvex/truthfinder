@@ -64,7 +64,7 @@ class MeasureBase(object):
                     val += self.UNITS[u] * value
                     default_unit = u
                 else:
-                    raise AttributeError('Unknown unit type: %s' % unit)
+                    raise AttributeError(f'Unknown unit type: {unit}')
         return val, default_unit
 
     @classmethod
@@ -82,7 +82,7 @@ class MeasureBase(object):
         elif lower in cls.LALIAS:
             return cls.LALIAS[lower]
         else:
-            raise Exception('Could not find a unit keyword associated with "%s"' % unit_str)
+            raise Exception(f'Could not find a unit keyword associated with "{unit_str}"')
 
 class Distance(MeasureBase):
     UNITS = {
@@ -170,19 +170,16 @@ class Distance(MeasureBase):
         if name in self.UNITS:
             return self.m / self.UNITS[name]
         else:
-            raise AttributeError('Unknown unit type: %s' % name)
+            raise AttributeError(f'Unknown unit type: {name}')
 
     def __repr__(self):
-        return 'Distance(%s=%s)' % (self._default_unit, getattr(self, self._default_unit))
+        return f'Distance({self._default_unit}={getattr(self, self._default_unit)})'
 
     def __str__(self):
-        return '%s %s' % (getattr(self, self._default_unit), self._default_unit)
+        return f'{getattr(self, self._default_unit)} {self._default_unit}'
 
     def __cmp__(self, other):
-        if isinstance(other, Distance):
-            return cmp(self.m, other.m)
-        else:
-            return NotImplemented
+        return cmp(self.m, other.m) if isinstance(other, Distance) else NotImplemented
 
     def __add__(self, other):
         if isinstance(other, Distance):
@@ -214,7 +211,7 @@ class Distance(MeasureBase):
         if isinstance(other, (int, float, long, Decimal)):
             return Distance(default_unit=self._default_unit, m=(self.m * float(other)))
         elif isinstance(other, Distance):
-            return Area(default_unit='sq_' + self._default_unit, sq_m=(self.m * other.m))
+            return Area(default_unit=f'sq_{self._default_unit}', sq_m=(self.m * other.m))
         else:
             raise TypeError('Distance must be multiplied with number or Distance')
 
@@ -259,13 +256,13 @@ class Area(MeasureBase):
         if name in self.UNITS:
             return self.sq_m / self.UNITS[name]
         else:
-            raise AttributeError('Unknown unit type: ' + name)
+            raise AttributeError(f'Unknown unit type: {name}')
 
     def __repr__(self):
-        return 'Area(%s=%s)' % (self._default_unit, getattr(self, self._default_unit))
+        return f'Area({self._default_unit}={getattr(self, self._default_unit)})'
 
     def __str__(self):
-        return '%s %s' % (getattr(self, self._default_unit), self._default_unit)
+        return f'{getattr(self, self._default_unit)} {self._default_unit}'
 
     def __cmp__(self, other):
         if isinstance(other, Area):

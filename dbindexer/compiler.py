@@ -2,8 +2,7 @@ from .resolver import resolver
 from django.utils.importlib import import_module
 
 def __repr__(self):
-    return '<%s, %s, %s, %s>' % (self.alias, self.col, self.field.name,
-        self.field.model.__name__)
+    return f'<{self.alias}, {self.col}, {self.field.name}, {self.field.model.__name__}>'
 
 from django.db.models.sql.where import Constraint
 Constraint.__repr__ = __repr__

@@ -35,7 +35,9 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     def get_table_description(self, cursor, table_name):
         "Returns a description of the table, with the DB-API cursor.description interface."
-        cursor.execute("SELECT * FROM %s LIMIT 1" % self.connection.ops.quote_name(table_name))
+        cursor.execute(
+            f"SELECT * FROM {self.connection.ops.quote_name(table_name)} LIMIT 1"
+        )
         return cursor.description
 
     def _name_to_index(self, cursor, table_name):
@@ -66,12 +68,14 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         except (ProgrammingError, OperationalError):
             # Fall back to "SHOW CREATE TABLE", for previous MySQL versions.
             # Go through all constraints and save the equal matches.
-            cursor.execute("SHOW CREATE TABLE %s" % self.connection.ops.quote_name(table_name))
+            cursor.execute(
+                f"SHOW CREATE TABLE {self.connection.ops.quote_name(table_name)}"
+            )
             for row in cursor.fetchall():
                 pos = 0
                 while True:
                     match = foreign_key_re.search(row[1], pos)
-                    if match == None:
+                    if match is None:
                         break
                     pos = match.end()
                     constraints.append(match.groups())
@@ -90,9 +94,12 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             {'primary_key': boolean representing whether it's the primary key,
              'unique': boolean representing whether it's a unique index}
         """
-        cursor.execute("SHOW INDEX FROM %s" % self.connection.ops.quote_name(table_name))
-        indexes = {}
-        for row in cursor.fetchall():
-            indexes[row[4]] = {'primary_key': (row[2] == 'PRIMARY'), 'unique': not bool(row[1])}
-        return indexes
+        cursor.execute(f"SHOW INDEX FROM {self.connection.ops.quote_name(table_name)}")
+        return {
+            row[4]: {
+                'primary_key': (row[2] == 'PRIMARY'),
+                'unique': not bool(row[1]),
+            }
+            for row in cursor.fetchall()
+        }
 

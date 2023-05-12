@@ -48,7 +48,7 @@ class Envelope(object):
                 else:
                     self._from_sequence(args[0])
             else:
-                raise TypeError('Incorrect type of argument: %s' % str(type(args[0])))
+                raise TypeError(f'Incorrect type of argument: {str(type(args[0]))}')
         elif len(args) == 4:
             # Individiual parameters passed in.
             #  Thanks to ww for the help
@@ -88,7 +88,7 @@ class Envelope(object):
         self._envelope.MaxX = seq[2]
         self._envelope.MaxY = seq[3]
     
-    def expand_to_include(self, *args): 
+    def expand_to_include(self, *args):
         """ 
         Modifies the envelope to expand to include the boundaries of 
         the passed-in 2-tuple (a point), 4-tuple (an extent) or 
@@ -97,12 +97,12 @@ class Envelope(object):
         # We provide a number of different signatures for this method, 
         # and the logic here is all about converting them into a 
         # 4-tuple single parameter which does the actual work of 
-        # expanding the envelope. 
+        # expanding the envelope.
         if len(args) == 1: 
             if isinstance(args[0], Envelope): 
-                return self.expand_to_include(args[0].tuple) 
+                return self.expand_to_include(args[0].tuple)
             elif hasattr(args[0], 'x') and hasattr(args[0], 'y'):
-                return self.expand_to_include(args[0].x, args[0].y, args[0].x, args[0].y) 
+                return self.expand_to_include(args[0].x, args[0].y, args[0].x, args[0].y)
             elif isinstance(args[0], (tuple, list)): 
                 # A tuple was passed in. 
                 if len(args[0]) == 2: 
@@ -118,15 +118,15 @@ class Envelope(object):
                     if maxy > self._envelope.MaxY: 
                         self._envelope.MaxY = maxy 
                 else: 
-                    raise OGRException('Incorrect number of tuple elements (%d).' % len(args[0])) 
+                    raise OGRException('Incorrect number of tuple elements (%d).' % len(args[0]))
             else: 
-                raise TypeError('Incorrect type of argument: %s' % str(type(args[0]))) 
+                raise TypeError(f'Incorrect type of argument: {str(type(args[0]))}')
         elif len(args) == 2: 
             # An x and an y parameter were passed in 
-                return self.expand_to_include((args[0], args[1], args[0], args[1])) 
+                return self.expand_to_include((args[0], args[1], args[0], args[1]))
         elif len(args) == 4: 
             # Individiual parameters passed in. 
-            return self.expand_to_include(args) 
+            return self.expand_to_include(args)
         else: 
             raise OGRException('Incorrect number (%d) of arguments.' % len(args[0])) 
 
@@ -169,7 +169,4 @@ class Envelope(object):
     def wkt(self):
         "Returns WKT representing a Polygon for this envelope."
         # TODO: Fix significant figures.
-        return 'POLYGON((%s %s,%s %s,%s %s,%s %s,%s %s))' % \
-               (self.min_x, self.min_y, self.min_x, self.max_y,
-                self.max_x, self.max_y, self.max_x, self.min_y,
-                self.min_x, self.min_y)
+        return f'POLYGON(({self.min_x} {self.min_y},{self.min_x} {self.max_y},{self.max_x} {self.max_y},{self.max_x} {self.min_y},{self.min_x} {self.min_y}))'

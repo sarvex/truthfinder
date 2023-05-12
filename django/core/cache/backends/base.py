@@ -35,10 +35,9 @@ def get_key_func(key_func):
     if key_func is not None:
         if callable(key_func):
             return key_func
-        else:
-            key_func_module_path, key_func_name = key_func.rsplit('.', 1)
-            key_func_module = import_module(key_func_module_path)
-            return getattr(key_func_module, key_func_name)
+        key_func_module_path, key_func_name = key_func.rsplit('.', 1)
+        key_func_module = import_module(key_func_module_path)
+        return getattr(key_func_module, key_func_name)
     return default_key_func
 
 class BaseCache(object):
@@ -78,8 +77,7 @@ class BaseCache(object):
         if version is None:
             version = self.version
 
-        new_key = self.key_func(key, self.key_prefix, version)
-        return new_key
+        return self.key_func(key, self.key_prefix, version)
 
     def add(self, key, value, timeout=None, version=None):
         """
@@ -139,7 +137,7 @@ class BaseCache(object):
         """
         value = self.get(key, version=version)
         if value is None:
-            raise ValueError("Key '%s' not found" % key)
+            raise ValueError(f"Key '{key}' not found")
         new_value = value + delta
         self.set(key, new_value, version=version)
         return new_value
@@ -211,7 +209,7 @@ class BaseCache(object):
 
         value = self.get(key, version=version)
         if value is None:
-            raise ValueError("Key '%s' not found" % key)
+            raise ValueError(f"Key '{key}' not found")
 
         self.set(key, value, version=version+delta)
         self.delete(key, version=version)

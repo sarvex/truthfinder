@@ -48,8 +48,7 @@ def geo_apps(namespace=True, runtests=False):
     if runtests:
         return [('django.contrib.gis.tests', app) for app in apps]
     elif namespace:
-        return ['django.contrib.gis.tests.%s' % app
-                for app in apps]
+        return [f'django.contrib.gis.tests.{app}' for app in apps]
     else:
         return apps
 

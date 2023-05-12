@@ -53,11 +53,10 @@ class GeometryProxy(object):
         if isinstance(value, self._klass) and (str(value.geom_type).upper() == gtype or gtype == 'GEOMETRY'):
             # Assigning the SRID to the geometry.
             if value.srid is None: value.srid = self._field.srid
-        elif value is None or isinstance(value, (basestring, buffer)):
-            # Set with None, WKT, HEX, or WKB
-            pass
-        else:
-            raise TypeError('cannot set %s GeometryProxy with value of type: %s' % (obj.__class__.__name__, type(value)))
+        elif value is not None and not isinstance(value, (basestring, buffer)):
+            raise TypeError(
+                f'cannot set {obj.__class__.__name__} GeometryProxy with value of type: {type(value)}'
+            )
 
         # Setting the objects dictionary with the value, and returning.
         obj.__dict__[self._field.attname] = value

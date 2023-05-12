@@ -36,9 +36,9 @@ class Feature(GDALBase):
         """
         if isinstance(index, basestring):
             i = self.index(index)
+        elif index < 0 or index > self.num_fields:
+            raise OGRIndexError('index out of range')
         else:
-            if index < 0 or index > self.num_fields:
-                raise OGRIndexError('index out of range')
             i = index
         return Field(self.ptr, i)
     
@@ -106,5 +106,6 @@ class Feature(GDALBase):
     def index(self, field_name):
         "Returns the index of the given field name."
         i = capi.get_field_index(self.ptr, field_name)
-        if i < 0: raise OGRIndexError('invalid OFT field name given: "%s"' % field_name)
+        if i < 0:
+            raise OGRIndexError(f'invalid OFT field name given: "{field_name}"')
         return i

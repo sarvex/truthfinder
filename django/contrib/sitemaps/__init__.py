@@ -31,9 +31,9 @@ def ping_google(sitemap_url=None, ping_url=PING_URL):
 
     from django.contrib.sites.models import Site
     current_site = Site.objects.get_current()
-    url = "http://%s%s" % (current_site.domain, sitemap_url)
+    url = f"http://{current_site.domain}{sitemap_url}"
     params = urllib.urlencode({'sitemap':url})
-    urllib.urlopen("%s?%s" % (ping_url, params))
+    urllib.urlopen(f"{ping_url}?{params}")
 
 class Sitemap(object):
     # This limit is defined by Google. See the index documentation at
@@ -45,9 +45,7 @@ class Sitemap(object):
             attr = getattr(self, name)
         except AttributeError:
             return default
-        if callable(attr):
-            return attr(obj)
-        return attr
+        return attr(obj) if callable(attr) else attr
 
     def items(self):
         return []
@@ -62,18 +60,17 @@ class Sitemap(object):
     paginator = property(_get_paginator)
 
     def get_urls(self, page=1, site=None):
+        if site is None and Site._meta.installed:
+            try:
+                site = Site.objects.get_current()
+            except Site.DoesNotExist:
+                pass
         if site is None:
-            if Site._meta.installed:
-                try:
-                    site = Site.objects.get_current()
-                except Site.DoesNotExist:
-                    pass
-            if site is None:
-                raise ImproperlyConfigured("In order to use Sitemaps you must either use the sites framework or pass in a Site or RequestSite object in your view code.")
+            raise ImproperlyConfigured("In order to use Sitemaps you must either use the sites framework or pass in a Site or RequestSite object in your view code.")
 
         urls = []
         for item in self.paginator.page(page).object_list:
-            loc = "http://%s%s" % (site.domain, self.__get('location', item))
+            loc = f"http://{site.domain}{self.__get('location', item)}"
             priority = self.__get('priority', item, None)
             url_info = {
                 'location':   loc,
@@ -104,6 +101,4 @@ class GenericSitemap(Sitemap):
         return self.queryset.filter()
 
     def lastmod(self, item):
-        if self.date_field is not None:
-            return getattr(item, self.date_field)
-        return None
+        return getattr(item, self.date_field) if self.date_field is not None else None

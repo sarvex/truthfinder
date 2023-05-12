@@ -33,8 +33,7 @@ class UploadedFile(File):
         self.charset = charset
 
     def __repr__(self):
-        return "<%s: %s (%s)>" % (
-            self.__class__.__name__, smart_str(self.name), self.content_type)
+        return f"<{self.__class__.__name__}: {smart_str(self.name)} ({self.content_type})>"
 
     def _get_name(self):
         return self._name
@@ -114,7 +113,7 @@ class SimpleUploadedFile(InMemoryUploadedFile):
         super(SimpleUploadedFile, self).__init__(StringIO(content), None, name,
                                                  content_type, len(content), None)
 
-    def from_dict(cls, file_dict):
+    def from_dict(self, file_dict):
         """
         Creates a SimpleUploadedFile object from
         a dictionary object with the following keys:
@@ -122,7 +121,9 @@ class SimpleUploadedFile(InMemoryUploadedFile):
            - content-type
            - content
         """
-        return cls(file_dict['filename'],
-                   file_dict['content'],
-                   file_dict.get('content-type', 'text/plain'))
+        return self(
+            file_dict['filename'],
+            file_dict['content'],
+            file_dict.get('content-type', 'text/plain'),
+        )
     from_dict = classmethod(from_dict)

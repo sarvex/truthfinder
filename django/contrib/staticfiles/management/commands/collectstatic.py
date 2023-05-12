@@ -49,17 +49,18 @@ class Command(NoArgsCommand):
         os.stat_float_times(False)
 
     def handle_noargs(self, **options):
-        symlink = options['link']
         ignore_patterns = options['ignore_patterns']
         if options['use_default_ignore_patterns']:
             ignore_patterns += ['CVS', '.*', '*~']
         ignore_patterns = list(set(ignore_patterns))
         self.verbosity = int(options.get('verbosity', 1))
 
+        symlink = options['link']
         if symlink:
             if sys.platform == 'win32':
-                raise CommandError("Symlinking is not supported by this "
-                                   "platform (%s)." % sys.platform)
+                raise CommandError(
+                    f"Symlinking is not supported by this platform ({sys.platform})."
+                )
             if not self.local:
                 raise CommandError("Can't symlink to a remote destination.")
 
@@ -88,15 +89,23 @@ Type 'yes' to continue, or 'no' to cancel: """)
                 else:
                     self.copy_file(path, prefixed_path, storage, **options)
 
-        actual_count = len(self.copied_files) + len(self.symlinked_files)
-        unmodified_count = len(self.unmodified_files)
         if self.verbosity >= 1:
-            self.stdout.write(smart_str(u"\n%s static file%s %s to '%s'%s.\n"
-                              % (actual_count, actual_count != 1 and 's' or '',
-                                 symlink and 'symlinked' or 'copied',
-                                 settings.STATIC_ROOT,
-                                 unmodified_count and ' (%s unmodified)'
-                                 % unmodified_count or '')))
+            actual_count = len(self.copied_files) + len(self.symlinked_files)
+            unmodified_count = len(self.unmodified_files)
+            self.stdout.write(
+                smart_str(
+                    u"\n%s static file%s %s to '%s'%s.\n"
+                    % (
+                        actual_count,
+                        actual_count != 1 and 's' or '',
+                        symlink and 'symlinked' or 'copied',
+                        settings.STATIC_ROOT,
+                        unmodified_count
+                        and f' ({unmodified_count} unmodified)'
+                        or '',
+                    )
+                )
+            )
 
     def log(self, msg, level=2):
         """
@@ -127,23 +136,30 @@ Type 'yes' to continue, or 'no' to cancel: """)
                     pass
                 else:
                     # The full path of the target file
-                    if self.local:
-                        full_path = self.storage.path(prefixed_path)
-                    else:
-                        full_path = None
+                    full_path = self.storage.path(prefixed_path) if self.local else None
                     # Skip the file if the source file is younger
-                    if target_last_modified >= source_last_modified:
-                        if not ((symlink and full_path and not os.path.islink(full_path)) or
-                                (not symlink and full_path and os.path.islink(full_path))):
-                            if prefixed_path not in self.unmodified_files:
-                                self.unmodified_files.append(prefixed_path)
-                            self.log(u"Skipping '%s' (not modified)" % path)
-                            return False
+                    if (
+                        target_last_modified >= source_last_modified
+                        and (
+                            not symlink
+                            or not full_path
+                            or os.path.islink(full_path)
+                        )
+                        and (
+                            symlink
+                            or not full_path
+                            or not os.path.islink(full_path)
+                        )
+                    ):
+                        if prefixed_path not in self.unmodified_files:
+                            self.unmodified_files.append(prefixed_path)
+                        self.log(f"Skipping '{path}' (not modified)")
+                        return False
             # Then delete the existing file if really needed
             if options['dry_run']:
-                self.log(u"Pretending to delete '%s'" % path)
+                self.log(f"Pretending to delete '{path}'")
             else:
-                self.log(u"Deleting '%s'" % path)
+                self.log(f"Deleting '{path}'")
                 self.storage.delete(prefixed_path)
         return True
 
@@ -153,7 +169,7 @@ Type 'yes' to continue, or 'no' to cancel: """)
         """
         # Skip this file if it was already copied earlier
         if prefixed_path in self.symlinked_files:
-            return self.log(u"Skipping '%s' (already linked earlier)" % path)
+            return self.log(f"Skipping '{path}' (already linked earlier)")
         # Delete the target file if needed or break
         if not self.delete_file(path, prefixed_path, source_storage, **options):
             return
@@ -161,9 +177,9 @@ Type 'yes' to continue, or 'no' to cancel: """)
         source_path = source_storage.path(path)
         # Finally link the file
         if options['dry_run']:
-            self.log(u"Pretending to link '%s'" % source_path, level=1)
+            self.log(f"Pretending to link '{source_path}'", level=1)
         else:
-            self.log(u"Linking '%s'" % source_path, level=1)
+            self.log(f"Linking '{source_path}'", level=1)
             full_path = self.storage.path(prefixed_path)
             try:
                 os.makedirs(os.path.dirname(full_path))
@@ -179,7 +195,7 @@ Type 'yes' to continue, or 'no' to cancel: """)
         """
         # Skip this file if it was already copied earlier
         if prefixed_path in self.copied_files:
-            return self.log(u"Skipping '%s' (already copied earlier)" % path)
+            return self.log(f"Skipping '{path}' (already copied earlier)")
         # Delete the target file if needed or break
         if not self.delete_file(path, prefixed_path, source_storage, **options):
             return
@@ -187,9 +203,9 @@ Type 'yes' to continue, or 'no' to cancel: """)
         source_path = source_storage.path(path)
         # Finally start copying
         if options['dry_run']:
-            self.log(u"Pretending to copy '%s'" % source_path, level=1)
+            self.log(f"Pretending to copy '{source_path}'", level=1)
         else:
-            self.log(u"Copying '%s'" % source_path, level=1)
+            self.log(f"Copying '{source_path}'", level=1)
             if self.local:
                 full_path = self.storage.path(prefixed_path)
                 try:
@@ -200,5 +216,5 @@ Type 'yes' to continue, or 'no' to cancel: """)
             else:
                 source_file = source_storage.open(path)
                 self.storage.save(prefixed_path, source_file)
-        if not prefixed_path in self.copied_files:
+        if prefixed_path not in self.copied_files:
             self.copied_files.append(prefixed_path)

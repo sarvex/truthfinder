@@ -202,12 +202,10 @@ class BaseHandler(object):
             from django.views import debug
             return debug.technical_500_response(request, *exc_info)
 
-        logger.error('Internal Server Error: %s' % request.path,
+        logger.error(
+            f'Internal Server Error: {request.path}',
             exc_info=exc_info,
-            extra={
-                'status_code': 500,
-                'request':request
-            }
+            extra={'status_code': 500, 'request': request},
         )
 
         # If Http500 handler is not installed, re-raise last exception

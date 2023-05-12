@@ -19,7 +19,8 @@ class GDALBase(object):
         # want to be passing NULL pointers to routines --
         # that's very bad.
         if self._ptr: return self._ptr
-        else: raise GDALException('GDAL %s pointer no longer valid.' % self.__class__.__name__)
+        else:else
+            raise GDALException(f'GDAL {self.__class__.__name__} pointer no longer valid.')
 
     def _set_ptr(self, ptr):
         # Only allow the pointer to be set with pointers of the

@@ -16,13 +16,12 @@ class GeoConstraint(Constraint):
 
     def process(self, lookup_type, value, connection):
         if isinstance(value, SQLEvaluator):
-            # Make sure the F Expression destination field exists, and
-            # set an `srid` attribute with the same as that of the
-            # destination.
-            geo_fld = GeoWhereNode._check_geo_field(value.opts, value.expression.name)
-            if not geo_fld:
+            if geo_fld := GeoWhereNode._check_geo_field(
+                value.opts, value.expression.name
+            ):
+                value.srid = geo_fld.srid
+            else:
                 raise ValueError('No geographic field found in expression.')
-            value.srid = geo_fld.srid
         db_type = self.field.db_type(connection=connection)
         params = self.field.get_db_prep_lookup(lookup_type, value, connection=connection)
         return (self.alias, self.col, db_type), params
@@ -42,12 +41,11 @@ class GeoWhereNode(WhereNode):
 
     def make_atom(self, child, qn, connection):
         lvalue, lookup_type, value_annot, params_or_value = child
-        if isinstance(lvalue, GeoConstraint):
-            data, params = lvalue.process(lookup_type, params_or_value, connection)
-            spatial_sql = connection.ops.spatial_lookup_sql(data, lookup_type, params_or_value, lvalue.field, qn)
-            return spatial_sql, params
-        else:
+        if not isinstance(lvalue, GeoConstraint):
             return super(GeoWhereNode, self).make_atom(child, qn, connection)
+        data, params = lvalue.process(lookup_type, params_or_value, connection)
+        spatial_sql = connection.ops.spatial_lookup_sql(data, lookup_type, params_or_value, lvalue.field, qn)
+        return spatial_sql, params
 
     @classmethod
     def _check_geo_field(cls, opts, lookup):
@@ -83,7 +81,4 @@ class GeoWhereNode(WhereNode):
             return False
 
         # Finally, make sure we got a Geographic field and return.
-        if isinstance(geo_fld, GeometryField):
-            return geo_fld
-        else:
-            return False
+        return geo_fld if isinstance(geo_fld, GeometryField) else False

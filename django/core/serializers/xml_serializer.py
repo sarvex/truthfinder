@@ -39,7 +39,9 @@ class Serializer(base.Serializer):
         Called as each object is handled.
         """
         if not hasattr(obj, "_meta"):
-            raise base.SerializationError("Non-model object (%s) encountered during serialization" % type(obj))
+            raise base.SerializationError(
+                f"Non-model object ({type(obj)}) encountered during serialization"
+            )
 
         self.indent(1)
         obj_pk = obj._get_pk_val()
@@ -86,25 +88,23 @@ class Serializer(base.Serializer):
         """
         self._start_relational_field(field)
         related = getattr(obj, field.name)
-        if related is not None:
-            if self.use_natural_keys and hasattr(related, 'natural_key'):
-                # If related object has a natural key, use it
-                related = related.natural_key()
-                # Iterable natural keys are rolled out as subelements
-                for key_value in related:
-                    self.xml.startElement("natural", {})
-                    self.xml.characters(smart_unicode(key_value))
-                    self.xml.endElement("natural")
-            else:
-                if field.rel.field_name == related._meta.pk.name:
-                    # Related to remote object via primary key
-                    related = related._get_pk_val()
-                else:
-                    # Related to remote object via other field
-                    related = getattr(related, field.rel.field_name)
-                self.xml.characters(smart_unicode(related))
-        else:
+        if related is None:
             self.xml.addQuickElement("None")
+        elif self.use_natural_keys and hasattr(related, 'natural_key'):
+            # If related object has a natural key, use it
+            related = related.natural_key()
+            # Iterable natural keys are rolled out as subelements
+            for key_value in related:
+                self.xml.startElement("natural", {})
+                self.xml.characters(smart_unicode(key_value))
+                self.xml.endElement("natural")
+        else:
+            related = (
+                related._get_pk_val()
+                if field.rel.field_name == related._meta.pk.name
+                else getattr(related, field.rel.field_name)
+            )
+            self.xml.characters(smart_unicode(related))
         self.xml.endElement("field")
 
     def handle_m2m_field(self, obj, field):
@@ -174,11 +174,7 @@ class Deserializer(base.Deserializer):
 
         # Start building a data dictionary from the object.
         # If the node is missing the pk set it to None
-        if node.hasAttribute("pk"):
-            pk = node.getAttribute("pk")
-        else:
-            pk = None
-
+        pk = node.getAttribute("pk") if node.hasAttribute("pk") else None
         data = {Model._meta.pk.attname : Model._meta.pk.to_python(pk)}
 
         # Also start building a dict of m2m data (this is saved as
@@ -217,29 +213,26 @@ class Deserializer(base.Deserializer):
         """
         Handle a <field> node for a ForeignKey
         """
-        # Check if there is a child node named 'None', returning None if so.
         if node.getElementsByTagName('None'):
             return None
-        else:
-            if hasattr(field.rel.to._default_manager, 'get_by_natural_key'):
-                keys = node.getElementsByTagName('natural')
-                if keys:
-                    # If there are 'natural' subelements, it must be a natural key
-                    field_value = [getInnerText(k).strip() for k in keys]
-                    obj = field.rel.to._default_manager.db_manager(self.db).get_by_natural_key(*field_value)
-                    obj_pk = getattr(obj, field.rel.field_name)
-                    # If this is a natural foreign key to an object that
-                    # has a FK/O2O as the foreign key, use the FK value
-                    if field.rel.to._meta.pk.rel:
-                        obj_pk = obj_pk.pk
-                else:
-                    # Otherwise, treat like a normal PK
-                    field_value = getInnerText(node).strip()
-                    obj_pk = field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
-                return obj_pk
+        if hasattr(field.rel.to._default_manager, 'get_by_natural_key'):
+            if keys := node.getElementsByTagName('natural'):
+                # If there are 'natural' subelements, it must be a natural key
+                field_value = [getInnerText(k).strip() for k in keys]
+                obj = field.rel.to._default_manager.db_manager(self.db).get_by_natural_key(*field_value)
+                obj_pk = getattr(obj, field.rel.field_name)
+                # If this is a natural foreign key to an object that
+                # has a FK/O2O as the foreign key, use the FK value
+                if field.rel.to._meta.pk.rel:
+                    obj_pk = obj_pk.pk
             else:
+                # Otherwise, treat like a normal PK
                 field_value = getInnerText(node).strip()
-                return field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
+                obj_pk = field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
+            return obj_pk
+        else:
+            field_value = getInnerText(node).strip()
+            return field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
 
     def _handle_m2m_field_node(self, node, field):
         """
@@ -268,16 +261,16 @@ class Deserializer(base.Deserializer):
         model_identifier = node.getAttribute(attr)
         if not model_identifier:
             raise base.DeserializationError(
-                "<%s> node is missing the required '%s' attribute" \
-                    % (node.nodeName, attr))
+                f"<{node.nodeName}> node is missing the required '{attr}' attribute"
+            )
         try:
             Model = models.get_model(*model_identifier.split("."))
         except TypeError:
             Model = None
         if Model is None:
             raise base.DeserializationError(
-                "<%s> node has invalid model identifier: '%s'" % \
-                    (node.nodeName, model_identifier))
+                f"<{node.nodeName}> node has invalid model identifier: '{model_identifier}'"
+            )
         return Model
 
 
@@ -288,10 +281,8 @@ def getInnerText(node):
     # inspired by http://mail.python.org/pipermail/xml-sig/2005-March/011022.html
     inner_text = []
     for child in node.childNodes:
-        if child.nodeType == child.TEXT_NODE or child.nodeType == child.CDATA_SECTION_NODE:
+        if child.nodeType in [child.TEXT_NODE, child.CDATA_SECTION_NODE]:
             inner_text.append(child.data)
         elif child.nodeType == child.ELEMENT_NODE:
             inner_text.extend(getInnerText(child))
-        else:
-           pass
     return u"".join(inner_text)

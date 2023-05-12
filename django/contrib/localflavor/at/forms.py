@@ -61,9 +61,9 @@ class ATSocialSecurityNumberField(Field):
         if int(sqnr) < 100:
            raise ValidationError(self.error_messages['invalid'])
         res = int(sqnr[0])*3 + int(sqnr[1])*7 + int(sqnr[2])*9 \
-           + int(date[0])*5 + int(date[1])*8 + int(date[2])*4 \
-           + int(date[3])*2 + int(date[4])*1 + int(date[5])*6
+               + int(date[0])*5 + int(date[1])*8 + int(date[2])*4 \
+               + int(date[3])*2 + int(date[4])*1 + int(date[5])*6
         res = res % 11
         if res != int(check):
            raise ValidationError(self.error_messages['invalid'])
-        return u'%s%s %s'%(sqnr, check, date,)
+        return f'{sqnr}{check} {date}'

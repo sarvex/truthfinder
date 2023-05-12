@@ -76,9 +76,10 @@ class GoogleMap(object):
         # level and a center coordinate are provided with polygons/polylines,
         # no automatic determination will occur.
         self.calc_zoom = False
-        if self.polygons or self.polylines  or self.markers:
-            if center is None or zoom is None:
-                self.calc_zoom = True
+        if (self.polygons or self.polylines or self.markers) and (
+            center is None or zoom is None
+        ):
+            self.calc_zoom = True
 
         # Defaults for the zoom level and center coordinates if the zoom
         # is not automatically calculated.
@@ -102,23 +103,25 @@ class GoogleMap(object):
                   'icons': self.icons,
                   'markers' : self.markers,
                   }
-        params.update(self.extra_context)
+        params |= self.extra_context
         return render_to_string(self.template, params)
 
     @property
     def body(self):
         "Returns HTML body tag for loading and unloading Google Maps javascript."
-        return mark_safe('<body %s %s>' % (self.onload, self.onunload))
+        return mark_safe(f'<body {self.onload} {self.onunload}>')
 
     @property
     def onload(self):
         "Returns the `onload` HTML <body> attribute."
-        return mark_safe('onload="%s.%s_load()"' % (self.js_module, self.dom_id))
+        return mark_safe(f'onload="{self.js_module}.{self.dom_id}_load()"')
 
     @property
     def api_script(self):
         "Returns the <script> tag for the Google Maps API javascript."
-        return mark_safe('<script src="%s%s" type="text/javascript"></script>' % (self.api_url, self.key))
+        return mark_safe(
+            f'<script src="{self.api_url}{self.key}" type="text/javascript"></script>'
+        )
 
     @property
     def js(self):
@@ -133,17 +136,17 @@ class GoogleMap(object):
     @property
     def style(self):
         "Returns additional CSS styling needed for Google Maps on IE."
-        return mark_safe('<style type="text/css">%s</style>' % self.vml_css)
+        return mark_safe(f'<style type="text/css">{self.vml_css}</style>')
 
     @property
     def xhtml(self):
         "Returns XHTML information needed for IE VML overlays."
-        return mark_safe('<html xmlns="http://www.w3.org/1999/xhtml" %s>' % self.xmlns)
+        return mark_safe(f'<html xmlns="http://www.w3.org/1999/xhtml" {self.xmlns}>')
 
     @property
     def icons(self):
         "Returns a sequence of GIcon objects in this map."
-        return set([marker.icon for marker in self.markers if marker.icon])
+        return {marker.icon for marker in self.markers if marker.icon}
 
 class GoogleMapSet(GoogleMap):
 
@@ -170,11 +173,7 @@ class GoogleMapSet(GoogleMap):
         self.template = template
 
         # If a tuple/list passed in as first element of args, then assume
-        if isinstance(args[0], (tuple, list)):
-            self.maps = args[0]
-        else:
-            self.maps = args
-
+        self.maps = args[0] if isinstance(args[0], (tuple, list)) else args
         # Generating DOM ids for each of the maps in the set.
         self.dom_ids = ['map%d' % i for i in xrange(len(self.maps))]
 
@@ -207,7 +206,7 @@ class GoogleMapSet(GoogleMap):
                   'load_map_js' : self.load_map_js(),
                   'icons' : self.icons,
                   }
-        params.update(self.extra_context)
+        params |= self.extra_context
         return render_to_string(self.template, params)
 
     @property
@@ -216,7 +215,7 @@ class GoogleMapSet(GoogleMap):
         # Overloaded to use the `load` function defined in the
         # `google-multi.js`, which calls the load routines for
         # each one of the individual maps in the set.
-        return mark_safe('onload="%s.load()"' % self.js_module)
+        return mark_safe(f'onload="{self.js_module}.load()"')
 
     @property
     def icons(self):

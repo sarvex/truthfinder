@@ -126,7 +126,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params = {
                 'database': settings_dict['NAME'],
             }
-            conn_params.update(settings_dict['OPTIONS'])
+            conn_params |= settings_dict['OPTIONS']
             if 'autocommit' in conn_params:
                 del conn_params['autocommit']
             if settings_dict['USER']:
@@ -148,11 +148,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 cursor.execute("SET TIME ZONE %s", [settings_dict['TIME_ZONE']])
             if not hasattr(self, '_version'):
                 self.__class__._version = get_version(cursor)
-            if self._version[0:2] < (8, 0):
+            if self._version[:2] < (8, 0):
                 # No savepoint support for earlier version of PostgreSQL.
                 self.features.uses_savepoints = False
             if self.features.uses_autocommit:
-                if self._version[0:2] < (8, 2):
+                if self._version[:2] < (8, 2):
                     # FIXME: Needs extra code to do reliable model insert
                     # handling, so we forbid it for now.
                     from django.core.exceptions import ImproperlyConfigured

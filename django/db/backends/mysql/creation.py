@@ -32,9 +32,9 @@ class DatabaseCreation(BaseDatabaseCreation):
     def sql_table_creation_suffix(self):
         suffix = []
         if self.connection.settings_dict['TEST_CHARSET']:
-            suffix.append('CHARACTER SET %s' % self.connection.settings_dict['TEST_CHARSET'])
+            suffix.append(f"CHARACTER SET {self.connection.settings_dict['TEST_CHARSET']}")
         if self.connection.settings_dict['TEST_COLLATION']:
-            suffix.append('COLLATE %s' % self.connection.settings_dict['TEST_COLLATION'])
+            suffix.append(f"COLLATE {self.connection.settings_dict['TEST_COLLATION']}")
         return ' '.join(suffix)
 
     def sql_for_inline_foreign_key_references(self, field, known_models, style):

@@ -25,11 +25,11 @@ def get_srid_info(srid, connection):
         # No `spatial_ref_sys` table in spatial backend (e.g., MySQL).
         return None, None, None
 
-    if not connection.alias in _srid_cache:
+    if connection.alias not in _srid_cache:
         # Initialize SRID dictionary for database if it doesn't exist.
         _srid_cache[connection.alias] = {}
 
-    if not srid in _srid_cache[connection.alias]:
+    if srid not in _srid_cache[connection.alias]:
         # Use `SpatialRefSys` model to query for spatial reference info.
         sr = SpatialRefSys.objects.using(connection.alias).get(srid=srid)
         units, units_name = sr.units
@@ -165,17 +165,18 @@ class GeometryField(Field):
             except GeometryException:
                 raise ValueError('Could not create geometry from lookup value.')
         else:
-            raise ValueError('Cannot use object with type %s for a geometry lookup parameter.' % type(geom).__name__)
+            raise ValueError(
+                f'Cannot use object with type {type(geom).__name__} for a geometry lookup parameter.'
+            )
 
         # Assigning the SRID value.
         geom.srid = self.get_srid(geom)
 
-        if seq_value:
-            lookup_val = [geom]
-            lookup_val.extend(value[1:])
-            return tuple(lookup_val)
-        else:
+        if not seq_value:
             return geom
+        lookup_val = [geom]
+        lookup_val.extend(value[1:])
+        return tuple(lookup_val)
 
     def get_srid(self, geom):
         """
@@ -184,10 +185,7 @@ class GeometryField(Field):
         has no SRID, then that of the field will be returned.
         """
         gsrid = geom.srid # SRID of given geometry.
-        if gsrid is None or self.srid == -1 or (gsrid == -1 and self.srid != -1):
-            return self.srid
-        else:
-            return gsrid
+        return self.srid if gsrid is None or self.srid == -1 or gsrid == -1 else gsrid
 
     ### Routines overloaded from Field ###
     def contribute_to_class(self, cls, name):
@@ -200,12 +198,12 @@ class GeometryField(Field):
         return connection.ops.geo_db_type(self)
 
     def formfield(self, **kwargs):
-        defaults = {'form_class' : forms.GeometryField,
-                    'null' : self.null,
-                    'geom_type' : self.geom_type,
-                    'srid' : self.srid,
-                    }
-        defaults.update(kwargs)
+        defaults = {
+            'form_class': forms.GeometryField,
+            'null': self.null,
+            'geom_type': self.geom_type,
+            'srid': self.srid,
+        } | kwargs
         return super(GeometryField, self).formfield(**defaults)
 
     def get_db_prep_lookup(self, lookup_type, value, connection, prepared=False):
@@ -216,39 +214,32 @@ class GeometryField(Field):
         parameters into the correct units for the coordinate system of the
         field.
         """
-        if lookup_type in connection.ops.gis_terms:
-            # special case for isnull lookup
-            if lookup_type == 'isnull':
-                return []
+        if lookup_type not in connection.ops.gis_terms:
+            raise ValueError(
+                f'{lookup_type} is not a valid spatial lookup for {self.__class__.__name__}.'
+            )
+        # special case for isnull lookup
+        if lookup_type == 'isnull':
+            return []
 
             # Populating the parameters list, and wrapping the Geometry
             # with the Adapter of the spatial backend.
-            if isinstance(value, (tuple, list)):
-                params = [connection.ops.Adapter(value[0])]
-                if lookup_type in connection.ops.distance_functions:
-                    # Getting the distance parameter in the units of the field.
-                    params += self.get_distance(value[1:], lookup_type, connection)
-                elif lookup_type in connection.ops.truncate_params:
-                    # Lookup is one where SQL parameters aren't needed from the
-                    # given lookup value.
-                    pass
-                else:
-                    params += value[1:]
-            elif isinstance(value, SQLEvaluator):
-                params = []
-            else:
-                params = [connection.ops.Adapter(value)]
-
-            return params
+        if isinstance(value, (tuple, list)):
+            params = [connection.ops.Adapter(value[0])]
+            if lookup_type in connection.ops.distance_functions:
+                # Getting the distance parameter in the units of the field.
+                params += self.get_distance(value[1:], lookup_type, connection)
+            elif lookup_type not in connection.ops.truncate_params:
+                params += value[1:]
+        elif isinstance(value, SQLEvaluator):
+            params = []
         else:
-            raise ValueError('%s is not a valid spatial lookup for %s.' %
-                             (lookup_type, self.__class__.__name__))
+            params = [connection.ops.Adapter(value)]
+
+        return params
 
     def get_prep_lookup(self, lookup_type, value):
-        if lookup_type == 'isnull':
-            return bool(value)
-        else:
-            return self.get_prep_value(value)
+        return bool(value) if lookup_type == 'isnull' else self.get_prep_value(value)
 
     def get_db_prep_save(self, value, connection):
         "Prepares the value for saving in the database."

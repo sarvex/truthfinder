@@ -36,11 +36,14 @@ class ARPostalCodeField(RegexField):
         value = super(ARPostalCodeField, self).clean(value)
         if value in EMPTY_VALUES:
             return u''
-        if len(value) not in (4, 8):
+        if len(value) in {4, 8}:
+            return (
+                f'{value[0].upper()}{value[1:5]}{value[5:].upper()}'
+                if len(value) == 8
+                else value
+            )
+        else:
             raise ValidationError(self.error_messages['invalid'])
-        if len(value) == 8:
-            return u'%s%s%s' % (value[0].upper(), value[1:5], value[5:].upper())
-        return value
 
 class ARDNIField(CharField):
     """
@@ -104,12 +107,12 @@ class ARCUITField(RegexField):
 
     def _calc_cd(self, cuit):
         mults = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
-        tmp = sum([m * int(cuit[idx]) for idx, m in enumerate(mults)])
+        tmp = sum(m * int(cuit[idx]) for idx, m in enumerate(mults))
         return str(11 - tmp % 11)
 
     def _format(self, cuit, check_digit=None):
-        if check_digit == None:
+        if check_digit is None:
             check_digit = cuit[-1]
             cuit = cuit[:-1]
-        return u'%s-%s-%s' % (cuit[:2], cuit[2:], check_digit)
+        return f'{cuit[:2]}-{cuit[2:]}-{check_digit}'
 

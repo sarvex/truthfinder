@@ -37,14 +37,14 @@ class OGRGeomType(object):
             if type_input == 'geometry': type_input='unknown'
             num = self._str_types.get(type_input, None)
             if num is None:
-                raise OGRException('Invalid OGR String Type "%s"' % type_input)
+                raise OGRException(f'Invalid OGR String Type "{type_input}"')
         elif isinstance(type_input, int):
-            if not type_input in self._types:
+            if type_input not in self._types:
                 raise OGRException('Invalid OGR Integer Type: %d' % type_input)
             num = type_input
         else:
             raise TypeError('Invalid OGR input type given.')
-        
+
         # Setting the OGR geometry type number.
         self.num = num
 
@@ -82,4 +82,4 @@ class OGRGeomType(object):
             return None
         elif s == 'Unknown':
             s = 'Geometry'
-        return s + 'Field'
+        return f'{s}Field'

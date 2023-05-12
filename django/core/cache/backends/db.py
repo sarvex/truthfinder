@@ -73,7 +73,7 @@ class DatabaseCache(BaseDatabaseCache):
         table = connections[db].ops.quote_name(self._table)
         cursor = connections[db].cursor()
 
-        cursor.execute("SELECT COUNT(*) FROM %s" % table)
+        cursor.execute(f"SELECT COUNT(*) FROM {table}")
         num = cursor.fetchone()[0]
         now = datetime.now().replace(microsecond=0)
         exp = datetime.fromtimestamp(time.time() + timeout).replace(microsecond=0)
@@ -129,7 +129,7 @@ class DatabaseCache(BaseDatabaseCache):
             table = connections[db].ops.quote_name(self._table)
             cursor.execute("DELETE FROM %s WHERE expires < %%s" % table,
                            [connections[db].ops.value_to_db_datetime(now)])
-            cursor.execute("SELECT COUNT(*) FROM %s" % table)
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
             num = cursor.fetchone()[0]
             if num > self._max_entries:
                 cursor.execute("SELECT cache_key FROM %s ORDER BY cache_key LIMIT 1 OFFSET %%s" % table, [num / self._cull_frequency])
@@ -139,7 +139,7 @@ class DatabaseCache(BaseDatabaseCache):
         db = router.db_for_write(self.cache_model_class)
         table = connections[db].ops.quote_name(self._table)
         cursor = connections[db].cursor()
-        cursor.execute('DELETE FROM %s' % table)
+        cursor.execute(f'DELETE FROM {table}')
 
 # For backwards compatibility
 class CacheClass(DatabaseCache):

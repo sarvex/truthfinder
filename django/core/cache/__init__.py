@@ -75,8 +75,7 @@ def parse_backend_uri(backend_uri):
     return scheme, host, params
 
 if not settings.CACHES:
-    legacy_backend = getattr(settings, 'CACHE_BACKEND', None)
-    if legacy_backend:
+    if legacy_backend := getattr(settings, 'CACHE_BACKEND', None):
         import warnings
         warnings.warn(
             "settings.CACHE_* is deprecated; use settings.CACHES instead.",
@@ -100,18 +99,18 @@ if not settings.CACHES:
     }
     engine, host, params = parse_backend_uri(settings.CACHE_BACKEND)
     if engine in backend_classes:
-        engine = 'django.core.cache.backends.%s' % backend_classes[engine]
+        engine = f'django.core.cache.backends.{backend_classes[engine]}'
     else:
-        engine = '%s.CacheClass' % engine
+        engine = f'{engine}.CacheClass'
     defaults = {
         'BACKEND': engine,
         'LOCATION': host,
     }
-    defaults.update(params)
+    defaults |= params
     settings.CACHES[DEFAULT_CACHE_ALIAS] = defaults
 
 if DEFAULT_CACHE_ALIAS not in settings.CACHES:
-    raise ImproperlyConfigured("You must define a '%s' cache" % DEFAULT_CACHE_ALIAS)
+    raise ImproperlyConfigured(f"You must define a '{DEFAULT_CACHE_ALIAS}' cache")
 
 def parse_backend_conf(backend, **kwargs):
     """
@@ -133,11 +132,12 @@ def parse_backend_conf(backend, **kwargs):
             mod = importlib.import_module(mod_path)
             backend_cls = getattr(mod, cls_name)
         except (AttributeError, ImportError):
-            raise InvalidCacheBackendError("Could not find backend '%s'" % backend)
+            raise InvalidCacheBackendError(f"Could not find backend '{backend}'")
         location = kwargs.pop('LOCATION', '')
         return backend, location, kwargs
     raise InvalidCacheBackendError(
-        "Couldn't find a cache backend named '%s'" % backend)
+        f"Couldn't find a cache backend named '{backend}'"
+    )
 
 def get_cache(backend, **kwargs):
     """

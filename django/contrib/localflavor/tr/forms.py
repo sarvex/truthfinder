@@ -42,9 +42,8 @@ class TRPhoneNumberField(CharField):
         if value in EMPTY_VALUES:
             return u''
         value = re.sub('(\(|\)|\s+)', '', smart_unicode(value))
-        m = phone_digits_re.search(value)
-        if m:
-            return u'%s%s' % (m.group(2), m.group(4))
+        if m := phone_digits_re.search(value):
+            return f'{m.group(2)}{m.group(4)}'
         raise ValidationError(self.error_messages['invalid'])
 
 class TRIdentificationNumberField(Field):
@@ -75,10 +74,15 @@ class TRIdentificationNumberField(Field):
             raise ValidationError(self.error_messages['invalid'])
         if int(value[0]) == 0:
             raise ValidationError(self.error_messages['invalid'])
-        chksum = (sum([int(value[i]) for i in xrange(0,9,2)])*7-
-                          sum([int(value[i]) for i in xrange(1,9,2)])) % 10
-        if chksum != int(value[9]) or \
-           (sum([int(value[i]) for i in xrange(10)]) % 10) != int(value[10]):
+        chksum = (
+            (
+                sum(int(value[i]) for i in xrange(0, 9, 2)) * 7
+                - sum(int(value[i]) for i in xrange(1, 9, 2))
+            )
+        ) % 10
+        if chksum != int(value[9]) or sum(
+            int(value[i]) for i in xrange(10)
+        ) % 10 != int(value[10]):
             raise ValidationError(self.error_messages['invalid'])
         return value
 

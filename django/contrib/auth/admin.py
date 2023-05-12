@@ -65,11 +65,11 @@ class UserAdmin(admin.ModelAdmin):
         """
         defaults = {}
         if obj is None:
-            defaults.update({
+            defaults |= {
                 'form': self.add_form,
                 'fields': admin.util.flatten_fieldsets(self.add_fieldsets),
-            })
-        defaults.update(kwargs)
+            }
+        defaults |= kwargs
         return super(UserAdmin, self).get_form(request, obj, **defaults)
 
     def get_urls(self):

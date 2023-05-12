@@ -12,7 +12,7 @@ class PermLookupDict(object):
         return str(self.user.get_all_permissions())
 
     def __getitem__(self, perm_name):
-        return self.user.has_perm("%s.%s" % (self.module_name, perm_name))
+        return self.user.has_perm(f"{self.module_name}.{perm_name}")
 
     def __nonzero__(self):
         return self.user.has_module_perms(self.module_name)
@@ -49,9 +49,8 @@ def auth(request):
     def get_user():
         if hasattr(request, 'user'):
             return request.user
-        else:
-            from django.contrib.auth.models import AnonymousUser
-            return AnonymousUser()
+        from django.contrib.auth.models import AnonymousUser
+        return AnonymousUser()
 
     return {
         'user': SimpleLazyObject(get_user),

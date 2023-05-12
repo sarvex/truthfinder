@@ -34,7 +34,7 @@ class GeoFeedMixin(object):
         """
         # Getting the Geometry object.
         geom = item.get('geometry', None)
-        if not geom is None:
+        if geom is not None:
             if isinstance(geom, (list, tuple)):
                 # Special case if a tuple/list was passed in.  The tuple may be
                 # a point or a box
@@ -45,35 +45,34 @@ class GeoFeedMixin(object):
                         box_coords = geom
                     else:
                         raise ValueError('Only should be two sets of coordinates.')
+                elif len(geom) == 2:
+                    # Point: (X, Y)
+                    self.add_georss_point(handler, geom, w3c_geo=w3c_geo)
+                elif len(geom) == 4:
+                    # Box: (X0, Y0, X1, Y1)
+                    box_coords = (geom[:2], geom[2:])
                 else:
-                    if len(geom) == 2:
-                        # Point: (X, Y)
-                        self.add_georss_point(handler, geom, w3c_geo=w3c_geo)
-                    elif len(geom) == 4:
-                        # Box: (X0, Y0, X1, Y1)
-                        box_coords = (geom[:2], geom[2:])
-                    else:
-                        raise ValueError('Only should be 2 or 4 numeric elements.')
+                    raise ValueError('Only should be 2 or 4 numeric elements.')
                 # If a GeoRSS box was given via tuple.
-                if not box_coords is None:
+                if box_coords is not None:
                     if w3c_geo: raise ValueError('Cannot use simple GeoRSS box in W3C Geo feeds.')
                     handler.addQuickElement(u'georss:box', self.georss_coords(box_coords))
             else:
                 # Getting the lower-case geometry type.
                 gtype = str(geom.geom_type).lower()
                 if gtype == 'point':
-                    self.add_georss_point(handler, geom.coords, w3c_geo=w3c_geo) 
+                    self.add_georss_point(handler, geom.coords, w3c_geo=w3c_geo)
                 else:
                     if w3c_geo: raise ValueError('W3C Geo only supports Point geometries.')
                     # For formatting consistent w/the GeoRSS simple standard:
                     # http://georss.org/1.0#simple
-                    if gtype in ('linestring', 'linearring'):
+                    if gtype in {'linestring', 'linearring'}:
                         handler.addQuickElement(u'georss:line', self.georss_coords(geom.coords))
-                    elif gtype in ('polygon',):
+                    elif gtype in {'polygon'}:
                         # Only support the exterior ring.
                         handler.addQuickElement(u'georss:polygon', self.georss_coords(geom[0].coords))
                     else:
-                        raise ValueError('Geometry type "%s" not supported.' % geom.geom_type)
+                        raise ValueError(f'Geometry type "{geom.geom_type}" not supported.')
 
 ### SyndicationFeed subclasses ###
 class GeoRSSFeed(Rss201rev2Feed, GeoFeedMixin):

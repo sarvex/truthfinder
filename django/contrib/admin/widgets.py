@@ -36,12 +36,16 @@ class FilteredSelectMultiple(forms.SelectMultiple):
         if attrs is None: attrs = {}
         attrs['class'] = 'selectfilter'
         if self.is_stacked: attrs['class'] += 'stacked'
-        output = [super(FilteredSelectMultiple, self).render(name, value, attrs, choices)]
-        output.append(u'<script type="text/javascript">addEvent(window, "load", function(e) {')
+        output = [
+            super(FilteredSelectMultiple, self).render(
+                name, value, attrs, choices
+            ),
+            '<script type="text/javascript">addEvent(window, "load", function(e) {',
+        ]
         # TODO: "id_" is hard-coded here. This should instead use the correct
         # API to determine the ID dynamically.
         output.append(u'SelectFilter.init("id_%s", "%s", %s, "%s"); });</script>\n' % \
-            (name, self.verbose_name.replace('"', '\\"'), int(self.is_stacked), settings.ADMIN_MEDIA_PREFIX))
+                (name, self.verbose_name.replace('"', '\\"'), int(self.is_stacked), settings.ADMIN_MEDIA_PREFIX))
         return mark_safe(u''.join(output))
 
 class AdminDateWidget(forms.DateInput):
@@ -71,25 +75,31 @@ class AdminSplitDateTime(forms.SplitDateTimeWidget):
         forms.MultiWidget.__init__(self, widgets, attrs)
 
     def format_output(self, rendered_widgets):
-        return mark_safe(u'<p class="datetime">%s %s<br />%s %s</p>' % \
-            (_('Date:'), rendered_widgets[0], _('Time:'), rendered_widgets[1]))
+        return mark_safe(
+            f"""<p class="datetime">{_('Date:')} {rendered_widgets[0]}<br />{_('Time:')} {rendered_widgets[1]}</p>"""
+        )
 
 class AdminRadioFieldRenderer(RadioFieldRenderer):
     def render(self):
         """Outputs a <ul> for this set of radio fields."""
-        return mark_safe(u'<ul%s>\n%s\n</ul>' % (
-            flatatt(self.attrs),
-            u'\n'.join([u'<li>%s</li>' % force_unicode(w) for w in self]))
+        return mark_safe(
+            (
+                u'<ul%s>\n%s\n</ul>'
+                % (
+                    flatatt(self.attrs),
+                    u'\n'.join([f'<li>{force_unicode(w)}</li>' for w in self]),
+                )
+            )
         )
 
 class AdminRadioSelect(forms.RadioSelect):
     renderer = AdminRadioFieldRenderer
 
+
+
 class AdminFileWidget(forms.ClearableFileInput):
-    template_with_initial = (u'<p class="file-upload">%s</p>'
-                            % forms.ClearableFileInput.template_with_initial)
-    template_with_clear = (u'<span class="clearable-file-input">%s</span>'
-                           % forms.ClearableFileInput.template_with_clear)
+    template_with_initial = f'<p class="file-upload">{forms.ClearableFileInput.template_with_initial}</p>'
+    template_with_clear = f'<span class="clearable-file-input">{forms.ClearableFileInput.template_with_clear}</span>'
 
 def url_params_from_lookup_dict(lookups):
     """
@@ -108,7 +118,7 @@ def url_params_from_lookup_dict(lookups):
             else:
                 v = unicode(v)
             items.append((k, v))
-        params.update(dict(items))
+        params |= dict(items)
     return params
 
 class ForeignKeyRawIdWidget(forms.TextInput):
@@ -124,10 +134,9 @@ class ForeignKeyRawIdWidget(forms.TextInput):
     def render(self, name, value, attrs=None):
         if attrs is None:
             attrs = {}
-        related_url = '../../../%s/%s/' % (self.rel.to._meta.app_label, self.rel.to._meta.object_name.lower())
-        params = self.url_parameters()
-        if params:
-            url = u'?' + u'&amp;'.join([u'%s=%s' % (k, v) for k, v in params.items()])
+        related_url = f'../../../{self.rel.to._meta.app_label}/{self.rel.to._meta.object_name.lower()}/'
+        if params := self.url_parameters():
+            url = u'?' + u'&amp;'.join([f'{k}={v}' for k, v in params.items()])
         else:
             url = u''
         if "class" not in attrs:
@@ -135,9 +144,12 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         output = [super(ForeignKeyRawIdWidget, self).render(name, value, attrs)]
         # TODO: "id_" is hard-coded here. This should instead use the correct
         # API to determine the ID dynamically.
-        output.append(u'<a href="%s%s" class="related-lookup" id="lookup_id_%s" onclick="return showRelatedObjectLookupPopup(this);"> ' % \
-            (related_url, url, name))
-        output.append(u'<img src="%simg/admin/selector-search.gif" width="16" height="16" alt="%s" /></a>' % (settings.ADMIN_MEDIA_PREFIX, _('Lookup')))
+        output.append(
+            f'<a href="{related_url}{url}" class="related-lookup" id="lookup_id_{name}" onclick="return showRelatedObjectLookupPopup(this);"> '
+        )
+        output.append(
+            f"""<img src="{settings.ADMIN_MEDIA_PREFIX}img/admin/selector-search.gif" width="16" height="16" alt="{_('Lookup')}" /></a>"""
+        )
         if value:
             output.append(self.label_for_value(value))
         return mark_safe(u''.join(output))
@@ -155,7 +167,7 @@ class ForeignKeyRawIdWidget(forms.TextInput):
         key = self.rel.get_related_field().name
         try:
             obj = self.rel.to._default_manager.using(self.db).get(**{key: value})
-            return '&nbsp;<strong>%s</strong>' % escape(truncate_words(obj, 14))
+            return f'&nbsp;<strong>{escape(truncate_words(obj, 14))}</strong>'
         except (ValueError, self.rel.to.DoesNotExist):
             return ''
 
@@ -168,10 +180,7 @@ class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
         if attrs is None:
             attrs = {}
         attrs['class'] = 'vManyToManyRawIdAdminField'
-        if value:
-            value = ','.join([force_unicode(v) for v in value])
-        else:
-            value = ''
+        value = ','.join([force_unicode(v) for v in value]) if value else ''
         return super(ManyToManyRawIdWidget, self).render(name, value, attrs)
 
     def url_parameters(self):
@@ -181,8 +190,7 @@ class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
         return ''
 
     def value_from_datadict(self, data, files, name):
-        value = data.get(name)
-        if value:
+        if value := data.get(name):
             return value.split(',')
 
     def _has_changed(self, initial, data):
@@ -192,10 +200,10 @@ class ManyToManyRawIdWidget(ForeignKeyRawIdWidget):
             data = []
         if len(initial) != len(data):
             return True
-        for pk1, pk2 in zip(initial, data):
-            if force_unicode(pk1) != force_unicode(pk2):
-                return True
-        return False
+        return any(
+            force_unicode(pk1) != force_unicode(pk2)
+            for pk1, pk2 in zip(initial, data)
+        )
 
 class RelatedFieldWidgetWrapper(forms.Widget):
     """
@@ -241,9 +249,12 @@ class RelatedFieldWidgetWrapper(forms.Widget):
         if self.can_add_related:
             # TODO: "id_" is hard-coded here. This should instead use the correct
             # API to determine the ID dynamically.
-            output.append(u'<a href="%s" class="add-another" id="add_id_%s" onclick="return showAddAnotherPopup(this);"> ' % \
-                (related_url, name))
-            output.append(u'<img src="%simg/admin/icon_addlink.gif" width="10" height="10" alt="%s"/></a>' % (settings.ADMIN_MEDIA_PREFIX, _('Add Another')))
+            output.append(
+                f'<a href="{related_url}" class="add-another" id="add_id_{name}" onclick="return showAddAnotherPopup(this);"> '
+            )
+            output.append(
+                f"""<img src="{settings.ADMIN_MEDIA_PREFIX}img/admin/icon_addlink.gif" width="10" height="10" alt="{_('Add Another')}"/></a>"""
+            )
         return mark_safe(u''.join(output))
 
     def build_attrs(self, extra_attrs=None, **kwargs):
@@ -264,33 +275,33 @@ class AdminTextareaWidget(forms.Textarea):
     def __init__(self, attrs=None):
         final_attrs = {'class': 'vLargeTextField'}
         if attrs is not None:
-            final_attrs.update(attrs)
+            final_attrs |= attrs
         super(AdminTextareaWidget, self).__init__(attrs=final_attrs)
 
 class AdminTextInputWidget(forms.TextInput):
     def __init__(self, attrs=None):
         final_attrs = {'class': 'vTextField'}
         if attrs is not None:
-            final_attrs.update(attrs)
+            final_attrs |= attrs
         super(AdminTextInputWidget, self).__init__(attrs=final_attrs)
 
 class AdminURLFieldWidget(forms.TextInput):
     def __init__(self, attrs=None):
         final_attrs = {'class': 'vURLField'}
         if attrs is not None:
-            final_attrs.update(attrs)
+            final_attrs |= attrs
         super(AdminURLFieldWidget, self).__init__(attrs=final_attrs)
 
 class AdminIntegerFieldWidget(forms.TextInput):
     def __init__(self, attrs=None):
         final_attrs = {'class': 'vIntegerField'}
         if attrs is not None:
-            final_attrs.update(attrs)
+            final_attrs |= attrs
         super(AdminIntegerFieldWidget, self).__init__(attrs=final_attrs)
 
 class AdminCommaSeparatedIntegerFieldWidget(forms.TextInput):
     def __init__(self, attrs=None):
         final_attrs = {'class': 'vCommaSeparatedIntegerField'}
         if attrs is not None:
-            final_attrs.update(attrs)
+            final_attrs |= attrs
         super(AdminCommaSeparatedIntegerFieldWidget, self).__init__(attrs=final_attrs)

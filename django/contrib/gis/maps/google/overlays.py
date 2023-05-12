@@ -47,7 +47,7 @@ class GEvent(object):
 
     def __unicode__(self):
         "Returns the parameter part of a GEvent."
-        return mark_safe('"%s", %s' %(self.event, self.action))
+        return mark_safe(f'"{self.event}", {self.action}')
 
 class GOverlayBase(object):
     def __init__(self):
@@ -55,7 +55,7 @@ class GOverlayBase(object):
 
     def latlng_from_coords(self, coords):
         "Generates a JavaScript array of GLatLng objects for the given coordinates."
-        return '[%s]' % ','.join(['new GLatLng(%s,%s)' % (y, x) for x, y in coords])
+        return f"[{','.join([f'new GLatLng({y},{x})' for x, y in coords])}]"
 
     def add_event(self, event):
         "Attaches a GEvent to the overlay object."
@@ -63,7 +63,7 @@ class GOverlayBase(object):
 
     def __unicode__(self):
         "The string representation is the JavaScript API call."
-        return mark_safe('%s(%s)' % (self.__class__.__name__, self.js_params))
+        return mark_safe(f'{self.__class__.__name__}({self.js_params})')
 
 class GPolygon(GOverlayBase):
     """
@@ -119,8 +119,7 @@ class GPolygon(GOverlayBase):
 
     @property
     def js_params(self):
-        return '%s, "%s", %s, %s, "%s", %s' % (self.points, self.stroke_color, self.stroke_weight, self.stroke_opacity,
-                                               self.fill_color, self.fill_opacity)
+        return f'{self.points}, "{self.stroke_color}", {self.stroke_weight}, {self.stroke_opacity}, "{self.fill_color}", {self.fill_opacity}'
 
 class GPolyline(GOverlayBase):
     """
@@ -163,7 +162,7 @@ class GPolyline(GOverlayBase):
 
     @property
     def js_params(self):
-        return '%s, "%s", %s, %s' % (self.latlngs, self.color, self.weight, self.opacity)
+        return f'{self.latlngs}, "{self.color}", {self.weight}, {self.opacity}'
 
 
 class GIcon(object):
@@ -287,15 +286,17 @@ class GMarker(GOverlayBase):
         super(GMarker, self).__init__()
 
     def latlng_from_coords(self, coords):
-        return 'new GLatLng(%s,%s)' %(coords[1], coords[0])
+        return f'new GLatLng({coords[1]},{coords[0]})'
 
     def options(self):
         result = []
-        if self.title: result.append('title: "%s"' % self.title)
-        if self.icon: result.append('icon: %s' % self.icon.varname)
+        if self.title:
+            result.append(f'title: "{self.title}"')
+        if self.icon:
+            result.append(f'icon: {self.icon.varname}')
         if self.draggable: result.append('draggable: true')
         return '{%s}' % ','.join(result)
 
     @property
     def js_params(self):
-        return '%s, %s' % (self.latlng, self.options())
+        return f'{self.latlng}, {self.options()}'

@@ -64,7 +64,7 @@ def login(request, template_name='registration/login.html',
         'site': current_site,
         'site_name': current_site.name,
     }
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))
 
@@ -76,26 +76,24 @@ def logout(request, next_page=None,
     Logs out the user and displays 'You are logged out' message.
     """
     auth_logout(request)
-    redirect_to = request.REQUEST.get(redirect_field_name, '')
-    if redirect_to:
+    if redirect_to := request.REQUEST.get(redirect_field_name, ''):
         netloc = urlparse.urlparse(redirect_to)[1]
         # Security check -- don't allow redirection to a different host.
-        if not (netloc and netloc != request.get_host()):
+        if not netloc or netloc == request.get_host():
             return HttpResponseRedirect(redirect_to)
 
-    if next_page is None:
-        current_site = get_current_site(request)
-        context = {
-            'site': current_site,
-            'site_name': current_site.name,
-            'title': _('Logged out')
-        }
-        context.update(extra_context or {})
-        return render_to_response(template_name, context,
-                                  context_instance=RequestContext(request, current_app=current_app))
-    else:
+    if next_page is not None:
         # Redirect to this page until the session has been cleared.
         return HttpResponseRedirect(next_page or request.path)
+    current_site = get_current_site(request)
+    context = {
+        'site': current_site,
+        'site_name': current_site.name,
+        'title': _('Logged out')
+    }
+    context |= (extra_context or {})
+    return render_to_response(template_name, context,
+                              context_instance=RequestContext(request, current_app=current_app))
 
 def logout_then_login(request, login_url=None, current_app=None, extra_context=None):
     """
@@ -159,7 +157,7 @@ def password_reset(request, is_admin_site=False,
     context = {
         'form': form,
     }
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))
 
@@ -167,7 +165,7 @@ def password_reset_done(request,
                         template_name='registration/password_reset_done.html',
                         current_app=None, extra_context=None):
     context = {}
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))
 
@@ -208,7 +206,7 @@ def password_reset_confirm(request, uidb64=None, token=None,
         'form': form,
         'validlink': validlink,
     }
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))
 
@@ -218,7 +216,7 @@ def password_reset_complete(request,
     context = {
         'login_url': settings.LOGIN_URL
     }
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))
 
@@ -241,7 +239,7 @@ def password_change(request,
     context = {
         'form': form,
     }
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))
 
@@ -249,6 +247,6 @@ def password_change_done(request,
                          template_name='registration/password_change_done.html',
                          current_app=None, extra_context=None):
     context = {}
-    context.update(extra_context or {})
+    context |= (extra_context or {})
     return render_to_response(template_name, context,
                               context_instance=RequestContext(request, current_app=current_app))

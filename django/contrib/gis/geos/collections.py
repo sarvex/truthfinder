@@ -19,15 +19,14 @@ class GeometryCollection(GEOSGeometry):
 
         # Checking the arguments
         if not args:
-            raise TypeError('Must provide at least one Geometry to initialize %s.' % self.__class__.__name__)
+            raise TypeError(
+                f'Must provide at least one Geometry to initialize {self.__class__.__name__}.'
+            )
 
         if len(args) == 1:
             # If only one geometry provided or a list of geometries is provided
             #  in the first argument.
-            if isinstance(args[0], (tuple, list)):
-                init_geoms = args[0]
-            else:
-                init_geoms = args
+            init_geoms = args[0] if isinstance(args[0], (tuple, list)) else args
         else:
             init_geoms = args
 
@@ -81,12 +80,12 @@ class GeometryCollection(GEOSGeometry):
     @property
     def kml(self):
         "Returns the KML for this Geometry Collection."
-        return '<MultiGeometry>%s</MultiGeometry>' % ''.join([g.kml for g in self])
+        return f"<MultiGeometry>{''.join([g.kml for g in self])}</MultiGeometry>"
 
     @property
     def tuple(self):
         "Returns a tuple of all the coordinates in this Geometry Collection"
-        return tuple([g.tuple for g in self])
+        return tuple(g.tuple for g in self)
     coords = tuple
 
 # MultiPoint, MultiLineString, and MultiPolygon class definitions.

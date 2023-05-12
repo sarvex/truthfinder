@@ -227,8 +227,9 @@ class LoginTest(AuthViewsTestCase):
                 }
             )
             self.assertEqual(response.status_code, 302)
-            self.assertFalse(bad_url in response['Location'],
-                             "%s should be blocked" % bad_url)
+            self.assertFalse(
+                bad_url in response['Location'], f"{bad_url} should be blocked"
+            )
 
         # These URLs *should* still pass the security check
         for good_url in ('/view/?param=http://example.com',
@@ -250,8 +251,9 @@ class LoginTest(AuthViewsTestCase):
                 }
             )
             self.assertEqual(response.status_code, 302)
-            self.assertTrue(good_url in response['Location'],
-                            "%s should be allowed" % good_url)
+            self.assertTrue(
+                good_url in response['Location'], f"{good_url} should be allowed"
+            )
 
 
 class LoginURLSettings(AuthViewsTestCase):
@@ -276,41 +278,47 @@ class LoginURLSettings(AuthViewsTestCase):
         login_required_url = self.get_login_required_url(login_url)
         querystring = QueryDict('', mutable=True)
         querystring['next'] = '/login_required/'
-        self.assertEqual(login_required_url,
-             'http://testserver%s?%s' % (login_url, querystring.urlencode('/')))
+        self.assertEqual(
+            login_required_url,
+            f"http://testserver{login_url}?{querystring.urlencode('/')}",
+        )
 
     def test_remote_login_url(self):
         login_url = 'http://remote.example.com/login'
         login_required_url = self.get_login_required_url(login_url)
         querystring = QueryDict('', mutable=True)
         querystring['next'] = 'http://testserver/login_required/'
-        self.assertEqual(login_required_url,
-                         '%s?%s' % (login_url, querystring.urlencode('/')))
+        self.assertEqual(
+            login_required_url, f"{login_url}?{querystring.urlencode('/')}"
+        )
 
     def test_https_login_url(self):
         login_url = 'https:///login/'
         login_required_url = self.get_login_required_url(login_url)
         querystring = QueryDict('', mutable=True)
         querystring['next'] = 'http://testserver/login_required/'
-        self.assertEqual(login_required_url,
-                         '%s?%s' % (login_url, querystring.urlencode('/')))
+        self.assertEqual(
+            login_required_url, f"{login_url}?{querystring.urlencode('/')}"
+        )
 
     def test_login_url_with_querystring(self):
         login_url = '/login/?pretty=1'
         login_required_url = self.get_login_required_url(login_url)
         querystring = QueryDict('pretty=1', mutable=True)
         querystring['next'] = '/login_required/'
-        self.assertEqual(login_required_url, 'http://testserver/login/?%s' %
-                         querystring.urlencode('/'))
+        self.assertEqual(
+            login_required_url,
+            f"http://testserver/login/?{querystring.urlencode('/')}",
+        )
 
     def test_remote_login_url_with_next_querystring(self):
         login_url = 'http://remote.example.com/login/'
-        login_required_url = self.get_login_required_url('%s?next=/default/' %
-                                                         login_url)
+        login_required_url = self.get_login_required_url(f'{login_url}?next=/default/')
         querystring = QueryDict('', mutable=True)
         querystring['next'] = 'http://testserver/login_required/'
-        self.assertEqual(login_required_url, '%s?%s' % (login_url,
-                                                    querystring.urlencode('/')))
+        self.assertEqual(
+            login_required_url, f"{login_url}?{querystring.urlencode('/')}"
+        )
 
 
 class LogoutTest(AuthViewsTestCase):
@@ -387,8 +395,9 @@ class LogoutTest(AuthViewsTestCase):
             self.login()
             response = self.client.get(nasty_url)
             self.assertEqual(response.status_code, 302)
-            self.assertFalse(bad_url in response['Location'],
-                             "%s should be blocked" % bad_url)
+            self.assertFalse(
+                bad_url in response['Location'], f"{bad_url} should be blocked"
+            )
             self.confirm_logged_out()
 
         # These URLs *should* still pass the security check
@@ -408,6 +417,7 @@ class LogoutTest(AuthViewsTestCase):
             self.login()
             response = self.client.get(safe_url)
             self.assertEqual(response.status_code, 302)
-            self.assertTrue(good_url in response['Location'],
-                            "%s should be allowed" % good_url)
+            self.assertTrue(
+                good_url in response['Location'], f"{good_url} should be allowed"
+            )
             self.confirm_logged_out()

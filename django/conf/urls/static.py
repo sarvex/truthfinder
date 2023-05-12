@@ -20,6 +20,11 @@ def static(prefix, view='django.views.static.serve', **kwargs):
         return []
     elif not prefix:
         raise ImproperlyConfigured("Empty static prefix not permitted")
-    return patterns('',
-        url(r'^%s(?P<path>.*)$' % re.escape(prefix.lstrip('/')), view, kwargs=kwargs),
+    return patterns(
+        '',
+        url(
+            f"^{re.escape(prefix.lstrip('/'))}(?P<path>.*)$",
+            view,
+            kwargs=kwargs,
+        ),
     )

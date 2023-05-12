@@ -26,7 +26,7 @@ class Command(NoArgsCommand):
         keys.sort()
         for key in keys:
             if key not in default_settings:
-                output.append("%s = %s  ###" % (key, user_settings[key]))
+                output.append(f"{key} = {user_settings[key]}  ###")
             elif user_settings[key] != default_settings[key]:
-                output.append("%s = %s" % (key, user_settings[key]))
+                output.append(f"{key} = {user_settings[key]}")
         return '\n'.join(output)

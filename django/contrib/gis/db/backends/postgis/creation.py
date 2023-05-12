@@ -12,14 +12,11 @@ class PostGISCreation(DatabaseCreation):
         output = super(PostGISCreation, self).sql_indexes_for_field(model, f, style)
 
         if isinstance(f, GeometryField):
-            gqn = self.connection.ops.geo_quote_name
             qn = self.connection.ops.quote_name
             db_table = model._meta.db_table
 
-            if f.geography:
-                # Geogrophy columns are created normally.
-                pass
-            else:
+            if not f.geography:
+                gqn = self.connection.ops.geo_quote_name
                 # Geometry columns are created by `AddGeometryColumn`
                 # stored procedure.
                 output.append(style.SQL_KEYWORD('SELECT ') +
@@ -45,16 +42,31 @@ class PostGISCreation(DatabaseCreation):
                 if f.geography:
                     index_opts = ''
                 else:
-                    index_opts = ' ' + style.SQL_KEYWORD(self.geom_index_opts)
-                output.append(style.SQL_KEYWORD('CREATE INDEX ') +
-                              style.SQL_TABLE(qn('%s_%s_id' % (db_table, f.column))) +
-                              style.SQL_KEYWORD(' ON ') +
-                              style.SQL_TABLE(qn(db_table)) +
-                              style.SQL_KEYWORD(' USING ') +
-                              style.SQL_COLTYPE(self.geom_index_type) + ' ( ' +
-                              style.SQL_FIELD(qn(f.column)) + index_opts + ' );')
+                    index_opts = f' {style.SQL_KEYWORD(self.geom_index_opts)}'
+                output.append(
+                    (
+                        (
+                            (
+                                (
+                                    style.SQL_KEYWORD('CREATE INDEX ')
+                                    + style.SQL_TABLE(
+                                        qn(f'{db_table}_{f.column}_id')
+                                    )
+                                )
+                                + style.SQL_KEYWORD(' ON ')
+                                + style.SQL_TABLE(qn(db_table))
+                                + style.SQL_KEYWORD(' USING ')
+                                + style.SQL_COLTYPE(self.geom_index_type)
+                                + ' ( '
+                            )
+                            + style.SQL_FIELD(qn(f.column))
+                            + index_opts
+                        )
+                        + ' );'
+                    )
+                )
         return output
 
     def sql_table_creation_suffix(self):
         qn = self.connection.ops.quote_name
-        return ' TEMPLATE %s' % qn(getattr(settings, 'POSTGIS_TEMPLATE', 'template_postgis'))
+        return f" TEMPLATE {qn(getattr(settings, 'POSTGIS_TEMPLATE', 'template_postgis'))}"

@@ -134,7 +134,9 @@ class FileBasedCache(BaseCache):
         try:
             os.makedirs(self._dir)
         except OSError:
-            raise EnvironmentError("Cache directory '%s' does not exist and could not be created'" % self._dir)
+            raise EnvironmentError(
+                f"Cache directory '{self._dir}' does not exist and could not be created'"
+            )
 
     def _key_to_file(self, key):
         """
@@ -150,10 +152,7 @@ class FileBasedCache(BaseCache):
         return os.path.join(self._dir, path)
 
     def _get_num_entries(self):
-        count = 0
-        for _,_,files in os.walk(self._dir):
-            count += len(files)
-        return count
+        return sum(len(files) for _, _, files in os.walk(self._dir))
     _num_entries = property(_get_num_entries)
 
     def clear(self):

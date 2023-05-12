@@ -6,6 +6,7 @@
  This module also houses GEOS Pointer utilities, including
  get_pointer_arr(), and GEOM_PTR.
 """
+
 import os, re, sys
 from ctypes import c_char_p, Structure, CDLL, CFUNCTYPE, POINTER
 from ctypes.util import find_library
@@ -28,7 +29,7 @@ elif os.name == 'posix':
     # *NIX libraries
     lib_names = ['geos_c', 'GEOS']
 else:
-    raise ImportError('Unsupported OS "%s"' % os.name)
+    raise ImportError(f'Unsupported OS "{os.name}"')
 
 # Using the ctypes `find_library` utility to find the path to the GEOS
 # shared library.  This is better than manually specifiying each library name
@@ -36,7 +37,7 @@ else:
 if lib_names:
     for lib_name in lib_names:
         lib_path = find_library(lib_name)
-        if not lib_path is None: break
+        if lib_path is not None: break
 
 # No GEOS library could be found.
 if lib_path is None:
@@ -109,9 +110,20 @@ def geos_version_info():
     version.
     """
     ver = geos_version()
-    m = version_regex.match(ver)
-    if not m: raise GEOSException('Could not parse version info string "%s"' % ver)
-    return dict((key, m.group(key)) for key in ('version', 'release_candidate', 'capi_version', 'major', 'minor', 'subminor'))
+    if m := version_regex.match(ver):
+        return {
+            key: m.group(key)
+            for key in (
+                'version',
+                'release_candidate',
+                'capi_version',
+                'major',
+                'minor',
+                'subminor',
+            )
+        }
+    else:
+        raise GEOSException(f'Could not parse version info string "{ver}"')
 
 # Version numbers and whether or not prepared geometry support is available.
 _verinfo = geos_version_info()

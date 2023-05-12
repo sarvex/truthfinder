@@ -21,7 +21,7 @@ rel_url = "http://www.truthfinder.org/ajax/rel/%i/json/"
 
 import urllib2
 
-unfound_nodes = set((HOME_PAGE_ID,))
+unfound_nodes = {HOME_PAGE_ID}
 saved_nodes = {}
 
 unfound_rels = set()
@@ -31,10 +31,10 @@ fetched_node_count = 0
 fetched_rel_count = 0
 log = open('log', 'w')
 log.write('\n=======================\n')
-while len(unfound_nodes) > 0 or len(unfound_rels) > 0:
+while unfound_nodes or unfound_rels:
     print("nodes: %i / %i, rels: %i / %i" % (fetched_node_count, fetched_node_count + len(unfound_nodes), fetched_rel_count, fetched_rel_count + len(unfound_rels)))
 
-    if len(unfound_nodes) > 0:
+    if unfound_nodes:
         node_id = unfound_nodes.pop()
 
         log.write('\n-----------------\n')

@@ -33,9 +33,8 @@ class FlexibleFieldLookupDict(object):
             return self.base_data_types_reverse[key]
         except KeyError:
             import re
-            m = re.search(r'^\s*(?:var)?char\s*\(\s*(\d+)\s*\)\s*$', key)
-            if m:
-                return ('CharField', {'max_length': int(m.group(1))})
+            if m := re.search(r'^\s*(?:var)?char\s*\(\s*(\d+)\s*\)\s*$', key):
+                return 'CharField', {'max_length': int(m[1])}
             raise KeyError
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
@@ -110,16 +109,18 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             {'primary_key': boolean representing whether it's the primary key,
              'unique': boolean representing whether it's a unique index}
         """
-        indexes = {}
-        for info in self._table_info(cursor, table_name):
-            indexes[info['name']] = {'primary_key': info['pk'] != 0,
-                                     'unique': False}
-        cursor.execute('PRAGMA index_list(%s)' % self.connection.ops.quote_name(table_name))
+        indexes = {
+            info['name']: {'primary_key': info['pk'] != 0, 'unique': False}
+            for info in self._table_info(cursor, table_name)
+        }
+        cursor.execute(
+            f'PRAGMA index_list({self.connection.ops.quote_name(table_name)})'
+        )
         # seq, name, unique
         for index, unique in [(field[1], field[2]) for field in cursor.fetchall()]:
             if not unique:
                 continue
-            cursor.execute('PRAGMA index_info(%s)' % self.connection.ops.quote_name(index))
+            cursor.execute(f'PRAGMA index_info({self.connection.ops.quote_name(index)})')
             info = cursor.fetchall()
             # Skip indexes across multiple fields
             if len(info) != 1:
@@ -129,7 +130,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         return indexes
 
     def _table_info(self, cursor, name):
-        cursor.execute('PRAGMA table_info(%s)' % self.connection.ops.quote_name(name))
+        cursor.execute(f'PRAGMA table_info({self.connection.ops.quote_name(name)})')
         # cid, name, type, notnull, dflt_value, pk
         return [{'name': field[1],
                  'type': field[2],

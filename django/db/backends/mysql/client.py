@@ -14,22 +14,16 @@ class DatabaseClient(BaseDatabaseClient):
         passwd = settings_dict['OPTIONS'].get('passwd', settings_dict['PASSWORD'])
         host = settings_dict['OPTIONS'].get('host', settings_dict['HOST'])
         port = settings_dict['OPTIONS'].get('port', settings_dict['PORT'])
-        defaults_file = settings_dict['OPTIONS'].get('read_default_file')
-        # Seems to be no good way to set sql_mode with CLI.
-
-        if defaults_file:
-            args += ["--defaults-file=%s" % defaults_file]
+        if defaults_file := settings_dict['OPTIONS'].get('read_default_file'):
+            args += [f"--defaults-file={defaults_file}"]
         if user:
-            args += ["--user=%s" % user]
+            args += [f"--user={user}"]
         if passwd:
-            args += ["--password=%s" % passwd]
+            args += [f"--password={passwd}"]
         if host:
-            if '/' in host:
-                args += ["--socket=%s" % host]
-            else:
-                args += ["--host=%s" % host]
+            args += [f"--socket={host}"] if '/' in host else [f"--host={host}"]
         if port:
-            args += ["--port=%s" % port]
+            args += [f"--port={port}"]
         if db:
             args += [db]
 

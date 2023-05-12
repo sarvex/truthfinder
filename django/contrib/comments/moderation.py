@@ -202,9 +202,8 @@ class CommentModerator(object):
         otherwise.
 
         """
-        if self.enable_field:
-            if not getattr(content_object, self.enable_field):
-                return False
+        if self.enable_field and not getattr(content_object, self.enable_field):
+            return False
         if self.auto_close_field and self.close_after is not None:
             close_after_date = getattr(content_object, self.auto_close_field)
             if close_after_date is not None and self._get_delta(datetime.datetime.now(), close_after_date).days >= self.close_after:
@@ -239,8 +238,7 @@ class CommentModerator(object):
         t = loader.get_template('comments/comment_notification_email.txt')
         c = Context({ 'comment': comment,
                       'content_object': content_object })
-        subject = '[%s] New comment posted on "%s"' % (Site.objects.get_current().name,
-                                                          content_object)
+        subject = f'[{Site.objects.get_current().name}] New comment posted on "{content_object}"'
         message = t.render(c)
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, recipient_list, fail_silently=True)
 
@@ -301,7 +299,9 @@ class Moderator(object):
             model_or_iterable = [model_or_iterable]
         for model in model_or_iterable:
             if model in self._registry:
-                raise AlreadyModerated("The model '%s' is already being moderated" % model._meta.module_name)
+                raise AlreadyModerated(
+                    f"The model '{model._meta.module_name}' is already being moderated"
+                )
             self._registry[model] = moderation_class(model)
 
     def unregister(self, model_or_iterable):
@@ -317,7 +317,9 @@ class Moderator(object):
             model_or_iterable = [model_or_iterable]
         for model in model_or_iterable:
             if model not in self._registry:
-                raise NotModerated("The model '%s' is not currently being moderated" % model._meta.module_name)
+                raise NotModerated(
+                    f"The model '{model._meta.module_name}' is not currently being moderated"
+                )
             del self._registry[model]
 
     def pre_save_moderation(self, sender, comment, request, **kwargs):

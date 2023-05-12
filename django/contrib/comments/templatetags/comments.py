@@ -15,7 +15,7 @@ class BaseCommentNode(template.Node):
     """
 
     #@classmethod
-    def handle_token(cls, parser, token):
+    def handle_token(self, parser, token):
         """Class method to parse get_comment_list/count/form and return a Node."""
         tokens = token.contents.split()
         if tokens[1] != 'for':
@@ -25,19 +25,17 @@ class BaseCommentNode(template.Node):
         if len(tokens) == 5:
             if tokens[3] != 'as':
                 raise template.TemplateSyntaxError("Third argument in %r must be 'as'" % tokens[0])
-            return cls(
-                object_expr = parser.compile_filter(tokens[2]),
-                as_varname = tokens[4],
+            return self(
+                object_expr=parser.compile_filter(tokens[2]), as_varname=tokens[4]
             )
 
-        # {% get_whatever for app.model pk as varname %}
         elif len(tokens) == 6:
             if tokens[4] != 'as':
                 raise template.TemplateSyntaxError("Fourth argument in %r must be 'as'" % tokens[0])
-            return cls(
-                ctype = BaseCommentNode.lookup_content_type(tokens[2], tokens[0]),
-                object_pk_expr = parser.compile_filter(tokens[3]),
-                as_varname = tokens[5]
+            return self(
+                ctype=BaseCommentNode.lookup_content_type(tokens[2], tokens[0]),
+                object_pk_expr=parser.compile_filter(tokens[3]),
+                as_varname=tokens[5],
             )
 
         else:
@@ -46,9 +44,9 @@ class BaseCommentNode(template.Node):
     handle_token = classmethod(handle_token)
 
     #@staticmethod
-    def lookup_content_type(token, tagname):
+    def lookup_content_type(self, tagname):
         try:
-            app, model = token.split('.')
+            app, model = self.split('.')
             return ContentType.objects.get(app_label=app, model=model)
         except ValueError:
             raise template.TemplateSyntaxError("Third argument in %r must be in the format 'app.model'" % tagname)
@@ -95,14 +93,13 @@ class BaseCommentNode(template.Node):
         return qs
 
     def get_target_ctype_pk(self, context):
-        if self.object_expr:
-            try:
-                obj = self.object_expr.resolve(context)
-            except template.VariableDoesNotExist:
-                return None, None
-            return ContentType.objects.get_for_model(obj), obj.pk
-        else:
+        if not self.object_expr:
             return self.ctype, self.object_pk_expr.resolve(context, ignore_failures=True)
+        try:
+            obj = self.object_expr.resolve(context)
+        except template.VariableDoesNotExist:
+            return None, None
+        return ContentType.objects.get_for_model(obj), obj.pk
 
     def get_context_value_from_queryset(self, context, qs):
         """Subclasses should override this."""
@@ -136,7 +133,7 @@ class RenderCommentFormNode(CommentFormNode):
     """Render the comment form directly"""
 
     #@classmethod
-    def handle_token(cls, parser, token):
+    def handle_token(self, parser, token):
         """Class method to parse render_comment_form and return a Node."""
         tokens = token.contents.split()
         if tokens[1] != 'for':
@@ -144,13 +141,12 @@ class RenderCommentFormNode(CommentFormNode):
 
         # {% render_comment_form for obj %}
         if len(tokens) == 3:
-            return cls(object_expr=parser.compile_filter(tokens[2]))
+            return self(object_expr=parser.compile_filter(tokens[2]))
 
-        # {% render_comment_form for app.models pk %}
         elif len(tokens) == 4:
-            return cls(
-                ctype = BaseCommentNode.lookup_content_type(tokens[2], tokens[0]),
-                object_pk_expr = parser.compile_filter(tokens[3])
+            return self(
+                ctype=BaseCommentNode.lookup_content_type(tokens[2], tokens[0]),
+                object_pk_expr=parser.compile_filter(tokens[3]),
             )
     handle_token = classmethod(handle_token)
 
@@ -158,9 +154,9 @@ class RenderCommentFormNode(CommentFormNode):
         ctype, object_pk = self.get_target_ctype_pk(context)
         if object_pk:
             template_search_list = [
-                "comments/%s/%s/form.html" % (ctype.app_label, ctype.model),
-                "comments/%s/form.html" % ctype.app_label,
-                "comments/form.html"
+                f"comments/{ctype.app_label}/{ctype.model}/form.html",
+                f"comments/{ctype.app_label}/form.html",
+                "comments/form.html",
             ]
             context.push()
             formstr = render_to_string(template_search_list, {"form" : self.get_form(context)}, context)
@@ -173,7 +169,7 @@ class RenderCommentListNode(CommentListNode):
     """Render the comment list directly"""
 
     #@classmethod
-    def handle_token(cls, parser, token):
+    def handle_token(self, parser, token):
         """Class method to parse render_comment_list and return a Node."""
         tokens = token.contents.split()
         if tokens[1] != 'for':
@@ -181,13 +177,12 @@ class RenderCommentListNode(CommentListNode):
 
         # {% render_comment_list for obj %}
         if len(tokens) == 3:
-            return cls(object_expr=parser.compile_filter(tokens[2]))
+            return self(object_expr=parser.compile_filter(tokens[2]))
 
-        # {% render_comment_list for app.models pk %}
         elif len(tokens) == 4:
-            return cls(
-                ctype = BaseCommentNode.lookup_content_type(tokens[2], tokens[0]),
-                object_pk_expr = parser.compile_filter(tokens[3])
+            return self(
+                ctype=BaseCommentNode.lookup_content_type(tokens[2], tokens[0]),
+                object_pk_expr=parser.compile_filter(tokens[3]),
             )
     handle_token = classmethod(handle_token)
 
@@ -195,9 +190,9 @@ class RenderCommentListNode(CommentListNode):
         ctype, object_pk = self.get_target_ctype_pk(context)
         if object_pk:
             template_search_list = [
-                "comments/%s/%s/list.html" % (ctype.app_label, ctype.model),
-                "comments/%s/list.html" % ctype.app_label,
-                "comments/list.html"
+                f"comments/{ctype.app_label}/{ctype.model}/list.html",
+                f"comments/{ctype.app_label}/list.html",
+                "comments/list.html",
             ]
             qs = self.get_query_set(context)
             context.push()

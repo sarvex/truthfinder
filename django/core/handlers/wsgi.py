@@ -97,7 +97,7 @@ class LimitedStream(object):
 
     def readline(self, size=None):
         while '\n' not in self.buffer and \
-              (size is None or len(self.buffer) < size):
+                  (size is None or len(self.buffer) < size):
             if size:
                 # since size is not None here, len(self.buffer) < size
                 chunk = self._read_limited(size - len(self.buffer))
@@ -107,10 +107,7 @@ class LimitedStream(object):
                 break
             self.buffer += chunk
         sio = StringIO(self.buffer)
-        if size:
-            line = sio.readline(size)
-        else:
-            line = sio.readline()
+        line = sio.readline(size) if size else sio.readline()
         self.buffer = sio.read()
         return line
 
@@ -129,7 +126,7 @@ class WSGIRequest(http.HttpRequest):
             path_info = u'/'
         self.environ = environ
         self.path_info = path_info
-        self.path = '%s%s' % (script_name, path_info)
+        self.path = f'{script_name}{path_info}'
         self.META = environ
         self.META['PATH_INFO'] = path_info
         self.META['SCRIPT_NAME'] = script_name
@@ -185,7 +182,7 @@ class WSGIRequest(http.HttpRequest):
     def get_full_path(self):
         # RFC 3986 requires query string arguments to be in the ASCII range.
         # Rather than crash if this doesn't happen, we encode defensively.
-        return '%s%s' % (self.path, self.environ.get('QUERY_STRING', '') and ('?' + iri_to_uri(self.environ.get('QUERY_STRING', ''))) or '')
+        return f"{self.path}{self.environ.get('QUERY_STRING', '') and '?' + iri_to_uri(self.environ.get('QUERY_STRING', '')) or ''}"
 
     def is_secure(self):
         return 'wsgi.url_scheme' in self.environ \
@@ -244,33 +241,29 @@ class WSGIHandler(base.BaseHandler):
         if self._request_middleware is None:
             self.initLock.acquire()
             try:
-                try:
-                    # Check that middleware is still uninitialised.
-                    if self._request_middleware is None:
-                        self.load_middleware()
-                except:
-                    # Unload whatever middleware we got
-                    self._request_middleware = None
-                    raise
+                # Check that middleware is still uninitialised.
+                if self._request_middleware is None:
+                    self.load_middleware()
+            except:
+                # Unload whatever middleware we got
+                self._request_middleware = None
+                raise
             finally:
                 self.initLock.release()
 
         set_script_prefix(base.get_script_name(environ))
         signals.request_started.send(sender=self.__class__)
         try:
-            try:
-                request = self.request_class(environ)
-            except UnicodeDecodeError:
-                logger.warning('Bad Request (UnicodeDecodeError): %s' % request.path,
-                    exc_info=sys.exc_info(),
-                    extra={
-                        'status_code': 400,
-                        'request': request
-                    }
-                )
-                response = http.HttpResponseBadRequest()
-            else:
-                response = self.get_response(request)
+            request = self.request_class(environ)
+        except UnicodeDecodeError:
+            logger.warning(
+                f'Bad Request (UnicodeDecodeError): {request.path}',
+                exc_info=sys.exc_info(),
+                extra={'status_code': 400, 'request': request},
+            )
+            response = http.HttpResponseBadRequest()
+        else:
+            response = self.get_response(request)
         finally:
             signals.request_finished.send(sender=self.__class__)
 
@@ -278,10 +271,12 @@ class WSGIHandler(base.BaseHandler):
             status_text = STATUS_CODE_TEXT[response.status_code]
         except KeyError:
             status_text = 'UNKNOWN STATUS CODE'
-        status = '%s %s' % (response.status_code, status_text)
+        status = f'{response.status_code} {status_text}'
         response_headers = [(str(k), str(v)) for k, v in response.items()]
-        for c in response.cookies.values():
-            response_headers.append(('Set-Cookie', str(c.output(header=''))))
+        response_headers.extend(
+            ('Set-Cookie', str(c.output(header='')))
+            for c in response.cookies.values()
+        )
         start_response(status, response_headers)
         return response
 

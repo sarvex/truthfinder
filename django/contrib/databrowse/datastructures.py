@@ -22,14 +22,16 @@ class EasyModel(object):
         self.verbose_name_plural = model._meta.verbose_name_plural
 
     def __repr__(self):
-        return '<EasyModel for %s>' % smart_str(self.model._meta.object_name)
+        return f'<EasyModel for {smart_str(self.model._meta.object_name)}>'
 
     def model_databrowse(self):
         "Returns the ModelDatabrowse class for this model."
         return self.site.registry[self.model]
 
     def url(self):
-        return mark_safe('%s%s/%s/' % (self.site.root_url, self.model._meta.app_label, self.model._meta.module_name))
+        return mark_safe(
+            f'{self.site.root_url}{self.model._meta.app_label}/{self.model._meta.module_name}/'
+        )
 
     def objects(self, **kwargs):
         return self.get_query_set().filter(**kwargs)
@@ -61,7 +63,9 @@ class EasyField(object):
         self.model, self.field = easy_model, field
 
     def __repr__(self):
-        return smart_str(u'<EasyField for %s.%s>' % (self.model.model._meta.object_name, self.field.name))
+        return smart_str(
+            f'<EasyField for {self.model.model._meta.object_name}.{self.field.name}>'
+        )
 
     def choices(self):
         for value, label in self.field.choices:
@@ -69,9 +73,13 @@ class EasyField(object):
 
     def url(self):
         if self.field.choices:
-            return mark_safe('%s%s/%s/%s/' % (self.model.site.root_url, self.model.model._meta.app_label, self.model.model._meta.module_name, self.field.name))
+            return mark_safe(
+                f'{self.model.site.root_url}{self.model.model._meta.app_label}/{self.model.model._meta.module_name}/{self.field.name}/'
+            )
         elif self.field.rel:
-            return mark_safe('%s%s/%s/' % (self.model.site.root_url, self.model.model._meta.app_label, self.model.model._meta.module_name))
+            return mark_safe(
+                f'{self.model.site.root_url}{self.model.model._meta.app_label}/{self.model.model._meta.module_name}/'
+            )
 
 class EasyChoice(object):
     def __init__(self, easy_model, field, value, label):
@@ -79,23 +87,27 @@ class EasyChoice(object):
         self.value, self.label = value, label
 
     def __repr__(self):
-        return smart_str(u'<EasyChoice for %s.%s>' % (self.model.model._meta.object_name, self.field.name))
+        return smart_str(
+            f'<EasyChoice for {self.model.model._meta.object_name}.{self.field.name}>'
+        )
 
     def url(self):
-        return mark_safe('%s%s/%s/%s/%s/' % (self.model.site.root_url, self.model.model._meta.app_label, self.model.model._meta.module_name, self.field.field.name, iri_to_uri(self.value)))
+        return mark_safe(
+            f'{self.model.site.root_url}{self.model.model._meta.app_label}/{self.model.model._meta.module_name}/{self.field.field.name}/{iri_to_uri(self.value)}/'
+        )
 
 class EasyInstance(object):
     def __init__(self, easy_model, instance):
         self.model, self.instance = easy_model, instance
 
     def __repr__(self):
-        return smart_str(u'<EasyInstance for %s (%s)>' % (self.model.model._meta.object_name, self.instance._get_pk_val()))
+        return smart_str(
+            f'<EasyInstance for {self.model.model._meta.object_name} ({self.instance._get_pk_val()})>'
+        )
 
     def __unicode__(self):
         val = smart_unicode(self.instance)
-        if len(val) > DISPLAY_SIZE:
-            return val[:DISPLAY_SIZE] + u'...'
-        return val
+        return f'{val[:DISPLAY_SIZE]}...' if len(val) > DISPLAY_SIZE else val
 
     def __str__(self):
         return self.__unicode__().encode('utf-8')
@@ -104,7 +116,9 @@ class EasyInstance(object):
         return self.instance._get_pk_val()
 
     def url(self):
-        return mark_safe('%s%s/%s/objects/%s/' % (self.model.site.root_url, self.model.model._meta.app_label, self.model.model._meta.module_name, iri_to_uri(self.pk())))
+        return mark_safe(
+            f'{self.model.site.root_url}{self.model.model._meta.app_label}/{self.model.model._meta.module_name}/objects/{iri_to_uri(self.pk())}/'
+        )
 
     def fields(self):
         """
@@ -136,7 +150,9 @@ class EasyInstanceField(object):
         self.raw_value = getattr(instance.instance, field.name)
 
     def __repr__(self):
-        return smart_str(u'<EasyInstanceField for %s.%s>' % (self.model.model._meta.object_name, self.field.name))
+        return smart_str(
+            f'<EasyInstanceField for {self.model.model._meta.object_name}.{self.field.name}>'
+        )
 
     def values(self):
         """
@@ -153,7 +169,7 @@ class EasyInstanceField(object):
                 return list(getattr(self.instance.instance, self.field.name).all())
         elif self.field.choices:
             objs = dict(self.field.choices).get(self.raw_value, EMPTY_VALUE)
-        elif isinstance(self.field, models.DateField) or isinstance(self.field, models.TimeField):
+        elif isinstance(self.field, (models.DateField, models.TimeField)):
             if self.raw_value:
                 if isinstance(self.field, models.DateTimeField):
                     objs = capfirst(formats.date_format(self.raw_value, 'DATETIME_FORMAT'))
@@ -163,7 +179,7 @@ class EasyInstanceField(object):
                     objs = capfirst(formats.date_format(self.raw_value, 'DATE_FORMAT'))
             else:
                 objs = EMPTY_VALUE
-        elif isinstance(self.field, models.BooleanField) or isinstance(self.field, models.NullBooleanField):
+        elif isinstance(self.field, (models.BooleanField, models.NullBooleanField)):
             objs = {True: 'Yes', False: 'No', None: 'Unknown'}[self.raw_value]
         else:
             objs = self.raw_value
@@ -184,14 +200,18 @@ class EasyInstanceField(object):
             if self.field.rel.to in self.model.model_list:
                 lst = []
                 for value in self.values():
-                    url = mark_safe('%s%s/%s/objects/%s/' % (self.model.site.root_url, m.model._meta.app_label, m.model._meta.module_name, iri_to_uri(value._get_pk_val())))
+                    url = mark_safe(
+                        f'{self.model.site.root_url}{m.model._meta.app_label}/{m.model._meta.module_name}/objects/{iri_to_uri(value._get_pk_val())}/'
+                    )
                     lst.append((smart_unicode(value), url))
             else:
                 lst = [(value, None) for value in self.values()]
         elif self.field.choices:
             lst = []
             for value in self.values():
-                url = mark_safe('%s%s/%s/fields/%s/%s/' % (self.model.site.root_url, self.model.model._meta.app_label, self.model.model._meta.module_name, self.field.name, iri_to_uri(self.raw_value)))
+                url = mark_safe(
+                    f'{self.model.site.root_url}{self.model.model._meta.app_label}/{self.model.model._meta.module_name}/fields/{self.field.name}/{iri_to_uri(self.raw_value)}/'
+                )
                 lst.append((value, url))
         elif isinstance(self.field, models.URLField):
             val = self.values()[0]

@@ -9,7 +9,7 @@ def create_lookup(lookup_def):
         if inspect.isclass(cls) and issubclass(cls, ExtraFieldLookup) and \
                 cls.matches_lookup_def(lookup_def):
             return cls()
-    raise LookupDoesNotExist('No Lookup found for %s .' % lookup_def)
+    raise LookupDoesNotExist(f'No Lookup found for {lookup_def} .')
 
 def register_index(model, mapping):
     for field_name, lookups in mapping.items():

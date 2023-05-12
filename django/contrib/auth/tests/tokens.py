@@ -66,7 +66,7 @@ class TokenGeneratorTest(TestCase):
             hash = sha_constructor(settings.SECRET_KEY + unicode(user.id) +
                                    user.password + user.last_login.strftime('%Y-%m-%d %H:%M:%S') +
                                    unicode(timestamp)).hexdigest()[::2]
-            return "%s-%s" % (ts_b36, hash)
+            return f"{ts_b36}-{hash}"
 
         user = User.objects.create_user('tokentestuser', 'test2@example.com', 'testpw')
         p0 = PasswordResetTokenGenerator()

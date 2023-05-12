@@ -41,7 +41,7 @@ class GeoAggregate(Aggregate):
             'function': sql_function,
             'field': field_name
         }
-        params.update(self.extra)
+        params |= self.extra
 
         return sql_template % params
 

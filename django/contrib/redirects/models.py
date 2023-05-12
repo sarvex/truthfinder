@@ -17,4 +17,4 @@ class Redirect(models.Model):
         ordering = ('old_path',)
     
     def __unicode__(self):
-        return "%s ---> %s" % (self.old_path, self.new_path)
+        return f"{self.old_path} ---> {self.new_path}"

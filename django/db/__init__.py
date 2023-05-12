@@ -33,11 +33,13 @@ if not settings.DATABASES:
     }
 
 if DEFAULT_DB_ALIAS not in settings.DATABASES:
-    raise ImproperlyConfigured("You must define a '%s' database" % DEFAULT_DB_ALIAS)
+    raise ImproperlyConfigured(f"You must define a '{DEFAULT_DB_ALIAS}' database")
 
 for alias, database in settings.DATABASES.items():
     if 'ENGINE' not in database:
-        raise ImproperlyConfigured("You must specify a 'ENGINE' for database '%s'" % alias)
+        raise ImproperlyConfigured(
+            f"You must specify a 'ENGINE' for database '{alias}'"
+        )
     if database['ENGINE'] in ("postgresql", "postgresql_psycopg2", "sqlite3", "mysql", "oracle"):
         import warnings
         if 'django.contrib.gis' in settings.INSTALLED_APPS:
@@ -52,14 +54,14 @@ for alias, database in settings.DATABASES.items():
             elif database['ENGINE'] == 'sqlite3':
                 full_engine = 'django.contrib.gis.db.backends.spatialite'
             else:
-                full_engine = 'django.contrib.gis.db.backends.%s' % database['ENGINE']
+                full_engine = f"django.contrib.gis.db.backends.{database['ENGINE']}"
         else:
             warnings.warn(
                 "Short names for ENGINE in database configurations are deprecated. "
                 "Prepend %s.ENGINE with 'django.db.backends.'" % alias,
                 DeprecationWarning
             )
-            full_engine = "django.db.backends.%s" % database['ENGINE']
+            full_engine = f"django.db.backends.{database['ENGINE']}"
         database['ENGINE'] = full_engine
 
 connections = ConnectionHandler(settings.DATABASES)

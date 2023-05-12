@@ -169,14 +169,14 @@ def validate_inline(cls, parent, parent_model):
 
     # extra = 3
     if not isinstance(cls.extra, int):
-        raise ImproperlyConfigured("'%s.extra' should be a integer."
-                % cls.__name__)
+        raise ImproperlyConfigured(f"'{cls.__name__}.extra' should be a integer.")
 
     # max_num = None
     max_num = getattr(cls, 'max_num', None)
     if max_num is not None and not isinstance(max_num, int):
-        raise ImproperlyConfigured("'%s.max_num' should be an integer or None (default)."
-                % cls.__name__)
+        raise ImproperlyConfigured(
+            f"'{cls.__name__}.max_num' should be an integer or None (default)."
+        )
 
     # formset
     if hasattr(cls, 'formset') and not issubclass(cls.formset, BaseModelFormSet):
@@ -184,11 +184,15 @@ def validate_inline(cls, parent, parent_model):
                 "BaseModelFormSet." % cls.__name__)
 
     # exclude
-    if hasattr(cls, 'exclude') and cls.exclude:
-        if fk and fk.name in cls.exclude:
-            raise ImproperlyConfigured("%s cannot exclude the field "
-                    "'%s' - this is the foreign key to the parent model "
-                    "%s." % (cls.__name__, fk.name, parent_model.__name__))
+    if (
+        hasattr(cls, 'exclude')
+        and cls.exclude
+        and fk
+        and fk.name in cls.exclude
+    ):
+        raise ImproperlyConfigured(
+            f"{cls.__name__} cannot exclude the field '{fk.name}' - this is the foreign key to the parent model {parent_model.__name__}."
+        )
 
     if hasattr(cls, "readonly_fields"):
         check_readonly_fields(cls, cls.model, cls.model._meta)
@@ -227,9 +231,13 @@ def validate_base(cls, model):
                     "field '%s' because '%s' manually specifies "
                     "a 'through' model." % (cls.__name__, field, field))
         if cls.fieldsets:
-            raise ImproperlyConfigured('Both fieldsets and fields are specified in %s.' % cls.__name__)
+            raise ImproperlyConfigured(
+                f'Both fieldsets and fields are specified in {cls.__name__}.'
+            )
         if len(cls.fields) > len(set(cls.fields)):
-            raise ImproperlyConfigured('There are duplicate field(s) in %s.fields' % cls.__name__)
+            raise ImproperlyConfigured(
+                f'There are duplicate field(s) in {cls.__name__}.fields'
+            )
 
     # fieldsets
     if cls.fieldsets: # default value is None
@@ -270,7 +278,9 @@ def validate_base(cls, model):
                         pass
         flattened_fieldsets = flatten_fieldsets(cls.fieldsets)
         if len(flattened_fieldsets) > len(set(flattened_fieldsets)):
-            raise ImproperlyConfigured('There are duplicate field(s) in %s.fieldsets' % cls.__name__)
+            raise ImproperlyConfigured(
+                f'There are duplicate field(s) in {cls.__name__}.fieldsets'
+            )
 
     # exclude
     if cls.exclude: # default value is None
@@ -284,7 +294,9 @@ def validate_base(cls, model):
                 # it could be an extra field on the form.
                 continue
         if len(cls.exclude) > len(set(cls.exclude)):
-            raise ImproperlyConfigured('There are duplicate field(s) in %s.exclude' % cls.__name__)
+            raise ImproperlyConfigured(
+                f'There are duplicate field(s) in {cls.__name__}.exclude'
+            )
 
     # form
     if hasattr(cls, 'form') and not issubclass(cls.form, BaseModelForm):
@@ -318,7 +330,7 @@ def validate_base(cls, model):
                 raise ImproperlyConfigured("'%s.radio_fields['%s']' "
                         "is neither an instance of ForeignKey nor does "
                         "have choices set." % (cls.__name__, field))
-            if not val in (HORIZONTAL, VERTICAL):
+            if val not in (HORIZONTAL, VERTICAL):
                 raise ImproperlyConfigured("'%s.radio_fields['%s']' "
                         "is neither admin.HORIZONTAL nor admin.VERTICAL."
                         % (cls.__name__, field))
@@ -334,24 +346,27 @@ def validate_base(cls, model):
                         "is either a DateTimeField, ForeignKey or "
                         "ManyToManyField. This isn't allowed."
                         % (cls.__name__, field))
-            check_isseq(cls, "prepopulated_fields['%s']" % field, val)
+            check_isseq(cls, f"prepopulated_fields['{field}']", val)
             for idx, f in enumerate(val):
                 get_field(cls, model, opts, "prepopulated_fields['%s'][%d]" % (field, idx), f)
 
 def check_isseq(cls, label, obj):
     if not isinstance(obj, (list, tuple)):
-        raise ImproperlyConfigured("'%s.%s' must be a list or tuple." % (cls.__name__, label))
+        raise ImproperlyConfigured(
+            f"'{cls.__name__}.{label}' must be a list or tuple."
+        )
 
 def check_isdict(cls, label, obj):
     if not isinstance(obj, dict):
-        raise ImproperlyConfigured("'%s.%s' must be a dictionary." % (cls.__name__, label))
+        raise ImproperlyConfigured(f"'{cls.__name__}.{label}' must be a dictionary.")
 
 def get_field(cls, model, opts, label, field):
     try:
         return opts.get_field(field)
     except models.FieldDoesNotExist:
-        raise ImproperlyConfigured("'%s.%s' refers to field '%s' that is missing from model '%s'."
-                % (cls.__name__, label, field, model.__name__))
+        raise ImproperlyConfigured(
+            f"'{cls.__name__}.{label}' refers to field '{field}' that is missing from model '{model.__name__}'."
+        )
 
 def check_formfield(cls, model, opts, label, field):
     if getattr(cls.form, 'base_fields', None):
@@ -376,17 +391,20 @@ def fetch_attr(cls, model, opts, label, field):
     try:
         return getattr(model, field)
     except AttributeError:
-        raise ImproperlyConfigured("'%s.%s' refers to '%s' that is neither a field, method or property of model '%s'."
-            % (cls.__name__, label, field, model.__name__))
+        raise ImproperlyConfigured(
+            f"'{cls.__name__}.{label}' refers to '{field}' that is neither a field, method or property of model '{model.__name__}'."
+        )
 
 def check_readonly_fields(cls, model, opts):
     check_isseq(cls, "readonly_fields", cls.readonly_fields)
     for idx, field in enumerate(cls.readonly_fields):
-        if not callable(field):
-            if not hasattr(cls, field):
-                if not hasattr(model, field):
-                    try:
-                        opts.get_field(field)
-                    except models.FieldDoesNotExist:
-                        raise ImproperlyConfigured("%s.readonly_fields[%d], %r is not a callable or an attribute of %r or found in the model %r."
-                            % (cls.__name__, idx, field, cls.__name__, model._meta.object_name))
+        if (
+            not callable(field)
+            and not hasattr(cls, field)
+            and not hasattr(model, field)
+        ):
+            try:
+                opts.get_field(field)
+            except models.FieldDoesNotExist:
+                raise ImproperlyConfigured("%s.readonly_fields[%d], %r is not a callable or an attribute of %r or found in the model %r."
+                    % (cls.__name__, idx, field, cls.__name__, model._meta.object_name))

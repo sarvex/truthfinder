@@ -24,7 +24,7 @@ class File(FileProxyMixin):
         return smart_unicode(self.name or u'')
 
     def __repr__(self):
-        return "<%s: %s>" % (self.__class__.__name__, self or "None")
+        return f'<{self.__class__.__name__}: {self or "None"}>'
 
     def __nonzero__(self):
         return bool(self.name)

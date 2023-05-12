@@ -66,8 +66,10 @@ class ContentTypesTests(TestCase):
         if Site._meta.installed:
             current_site = Site.objects.get_current()
             response = shortcut(request, user_ct.id, obj.id)
-            self.assertEqual("http://%s/users/john/" % current_site.domain,
-                             response._headers.get("location")[1])
+            self.assertEqual(
+                f"http://{current_site.domain}/users/john/",
+                response._headers.get("location")[1],
+            )
 
         Site._meta.installed = False
         response = shortcut(request, user_ct.id, obj.id)

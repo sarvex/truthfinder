@@ -25,11 +25,10 @@ class Paginator(object):
             raise PageNotAnInteger('That page number is not an integer')
         if number < 1:
             raise EmptyPage('That page number is less than 1')
-        if number > self.num_pages:
-            if number == 1 and self.allow_empty_first_page:
-                pass
-            else:
-                raise EmptyPage('That page contains no results')
+        if number > self.num_pages and (
+            number != 1 or not self.allow_empty_first_page
+        ):
+            raise EmptyPage('That page contains no results')
         return number
 
     def page(self, number):
@@ -82,7 +81,7 @@ class Page(object):
         self.paginator = paginator
 
     def __repr__(self):
-        return '<Page %s of %s>' % (self.number, self.paginator.num_pages)
+        return f'<Page {self.number} of {self.paginator.num_pages}>'
 
     def has_next(self):
         return self.number < self.paginator.num_pages

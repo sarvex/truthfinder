@@ -13,10 +13,7 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
         See the comments in `test15_srid` for more details.
         """
         info = geos_version_info()
-        if info['version'] == '3.0.0' and info['release_candidate']:
-            return -1
-        else:
-            return None
+        return -1 if info['version'] == '3.0.0' and info['release_candidate'] else None
 
     def test00_base(self):
         "Tests out the GEOSBase class."
@@ -126,8 +123,8 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
         "Testing KML output."
         for tg in self.geometries.wkt_out:
             geom = fromstr(tg.wkt)
-            kml = getattr(tg, 'kml', False)
-            if kml: self.assertEqual(kml, geom.kml)
+            if kml := getattr(tg, 'kml', False):
+                self.assertEqual(kml, geom.kml)
 
     def test01d_errors(self):
         "Testing the Error handlers."
@@ -423,7 +420,7 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
             self.assertRaises(TypeError, Polygon.__init__, 'foo')
 
             # Polygon(shell, (hole1, ... holeN))
-            rings = tuple(r for r in poly)
+            rings = tuple(poly)
             self.assertEqual(poly, Polygon(rings[0], rings[1:]))
 
             # Polygon(shell_tuple, hole_tuple1, ... , hole_tupleN)
@@ -431,7 +428,7 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
             self.assertEqual(poly, Polygon(*ring_tuples))
 
             # Constructing with tuples of LinearRings.
-            self.assertEqual(poly.wkt, Polygon(*tuple(r for r in poly)).wkt)
+            self.assertEqual(poly.wkt, Polygon(*tuple(poly)).wkt)
             self.assertEqual(poly.wkt, Polygon(*tuple(LinearRing(r.tuple) for r in poly)).wkt)
 
     def test05b_multipolygons(self):
@@ -498,8 +495,7 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
                     self.assertEqual(c1, c2)
 
                     # Constructing the test value to set the coordinate sequence with
-                    if len(c1) == 2: tset = (5, 23)
-                    else: tset = (5, 23, 8)
+                    tset = (5, 23) if len(c1) == 2 else (5, 23, 8)
                     cs[i] = tset
 
                     # Making sure every set point matches what we expect
@@ -643,8 +639,7 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
 
             # Constructing the new shell by adding 500 to every point in the old shell.
             shell_tup = poly.shell.tuple
-            new_coords = []
-            for point in shell_tup: new_coords.append((point[0] + 500., point[1] + 500.))
+            new_coords = [(point[0] + 500., point[1] + 500.) for point in shell_tup]
             new_shell = LinearRing(*tuple(new_coords))
 
             # Assigning polygon's exterior ring w/the new shell
@@ -794,13 +789,13 @@ class GEOSTest(unittest.TestCase, TestDataMixin):
         coll.extend([mls.wkt for mls in self.geometries.multilinestrings])
         coll.extend([p.wkt for p in self.geometries.polygons])
         coll.extend([mp.wkt for mp in self.geometries.multipoints])
-        gc_wkt = 'GEOMETRYCOLLECTION(%s)' % ','.join(coll)
+        gc_wkt = f"GEOMETRYCOLLECTION({','.join(coll)})"
 
         # Should construct ok from WKT
         gc1 = GEOSGeometry(gc_wkt)
 
         # Should also construct ok from individual geometry arguments.
-        gc2 = GeometryCollection(*tuple(g for g in gc1))
+        gc2 = GeometryCollection(*tuple(gc1))
 
         # And, they should be equal.
         self.assertEqual(gc1, gc2)

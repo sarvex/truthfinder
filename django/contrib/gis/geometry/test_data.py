@@ -19,7 +19,7 @@ TEST_DATA = os.path.join(os.path.dirname(gis.__file__), 'tests', 'data')
 def tuplize(seq):
     "Turn all nested sequences to tuples in given sequence."
     if isinstance(seq, (list, tuple)):
-        return tuple([tuplize(i) for i in seq])
+        return tuple(tuplize(i) for i in seq)
     return seq
 
 
@@ -29,10 +29,7 @@ def strconvert(d):
 
 
 def get_ds_file(name, ext):
-    return os.path.join(TEST_DATA,
-                        name,
-                        name + '.%s' % ext
-                        )
+    return os.path.join(TEST_DATA, name, f'{name}.{ext}')
 
 
 class TestObj(object):
@@ -61,15 +58,10 @@ class TestGeom(TestObj):
     in GEOS/GDAL tests.
     """
     def __init__(self, **kwargs):
-        # Converting lists to tuples of certain keyword args
-        # so coordinate test cases will match (JSON has no
-        # concept of tuple).
-        coords = kwargs.pop('coords', None)
-        if coords:
+        if coords := kwargs.pop('coords', None):
             self.coords = tuplize(coords)
 
-        centroid = kwargs.pop('centroid', None)
-        if centroid:
+        if centroid := kwargs.pop('centroid', None):
             self.centroid = tuple(centroid)
 
         ext_ring_cs = kwargs.pop('ext_ring_cs', None)

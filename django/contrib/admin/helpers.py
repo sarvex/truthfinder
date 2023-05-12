@@ -76,7 +76,7 @@ class Fieldset(object):
     def _media(self):
         if 'collapse' in self.classes:
             js = ['js/jquery.min.js', 'js/jquery.init.js', 'js/collapse.min.js']
-            return forms.Media(js=['%s%s' % (settings.ADMIN_MEDIA_PREFIX, url) for url in js])
+            return forms.Media(js=[f'{settings.ADMIN_MEDIA_PREFIX}{url}' for url in js])
         return forms.Media()
     media = property(_media)
 
@@ -87,10 +87,7 @@ class Fieldset(object):
 class Fieldline(object):
     def __init__(self, form, field, readonly_fields=None, model_admin=None):
         self.form = form # A django.forms.Form instance
-        if not hasattr(field, "__iter__"):
-            self.fields = [field]
-        else:
-            self.fields = field
+        self.fields = [field] if not hasattr(field, "__iter__") else field
         self.model_admin = model_admin
         if readonly_fields is None:
             readonly_fields = ()
@@ -119,12 +116,12 @@ class AdminField(object):
             classes.append(u'vCheckboxLabel')
             contents = force_unicode(escape(self.field.label))
         else:
-            contents = force_unicode(escape(self.field.label)) + u':'
+            contents = f'{force_unicode(escape(self.field.label))}:'
         if self.field.field.required:
             classes.append(u'required')
         if not self.is_first:
             classes.append(u'inline')
-        attrs = classes and {'class': u' '.join(classes)} or {}
+        attrs = {'class': u' '.join(classes)} if classes else {}
         return self.field.label_tag(contents=contents, attrs=attrs)
 
     def errors(self):
@@ -157,7 +154,7 @@ class AdminReadonlyField(object):
         if not self.is_first:
             attrs["class"] = "inline"
         label = self.field['label']
-        contents = capfirst(force_unicode(escape(label))) + u":"
+        contents = f"{capfirst(force_unicode(escape(label)))}:"
         return mark_safe('<label%(attrs)s>%(contents)s</label>' % {
             "attrs": flatatt(attrs),
             "contents": contents,
@@ -180,13 +177,12 @@ class AdminReadonlyField(object):
                     result_repr = smart_unicode(value)
                     if getattr(attr, "allow_tags", False):
                         result_repr = mark_safe(result_repr)
+            elif value is None:
+                result_repr = EMPTY_CHANGELIST_VALUE
+            elif isinstance(f.rel, ManyToManyRel):
+                result_repr = ", ".join(map(unicode, value.all()))
             else:
-                if value is None:
-                    result_repr = EMPTY_CHANGELIST_VALUE
-                elif isinstance(f.rel, ManyToManyRel):
-                    result_repr = ", ".join(map(unicode, value.all()))
-                else:
-                    result_repr = display_for_field(value, f)
+                result_repr = display_for_field(value, f)
         return conditional_escape(result_repr)
 
 class InlineAdminFormSet(object):
@@ -261,11 +257,10 @@ class InlineAdminForm(AdminForm):
     def has_auto_field(self):
         if self.form._meta.model._meta.has_auto_field:
             return True
-        # Also search any parents for an auto field.
-        for parent in self.form._meta.model._meta.get_parent_list():
-            if parent._meta.has_auto_field:
-                return True
-        return False
+        return any(
+            parent._meta.has_auto_field
+            for parent in self.form._meta.model._meta.get_parent_list()
+        )
 
     def field_count(self):
         # tabular.html uses this function for colspan value.
@@ -283,8 +278,7 @@ class InlineAdminForm(AdminForm):
         return AdminField(self.form, self.formset._pk_field.name, False)
 
     def fk_field(self):
-        fk = getattr(self.formset, "fk", None)
-        if fk:
+        if fk := getattr(self.formset, "fk", None):
             return AdminField(self.form, fk.name, False)
         else:
             return ""
@@ -327,10 +321,7 @@ def normalize_fieldsets(fieldsets):
     Make sure the keys in fieldset dictionaries are strings. Returns the
     normalized data.
     """
-    result = []
-    for name, options in fieldsets:
-        result.append((name, normalize_dictionary(options)))
-    return result
+    return [(name, normalize_dictionary(options)) for name, options in fieldsets]
 
 def normalize_dictionary(data_dict):
     """

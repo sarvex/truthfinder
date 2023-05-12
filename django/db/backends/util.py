@@ -51,10 +51,12 @@ class CursorDebugWrapper(CursorWrapper):
         finally:
             stop = time()
             duration = stop - start
-            self.db.queries.append({
-                'sql': '%s times: %s' % (len(param_list), sql),
-                'time': "%.3f" % duration,
-            })
+            self.db.queries.append(
+                {
+                    'sql': f'{len(param_list)} times: {sql}',
+                    'time': "%.3f" % duration,
+                }
+            )
             logger.debug('(%.3f) %s; args=%s' % (duration, sql, param_list),
                 extra={'duration':duration, 'sql':sql, 'params':param_list}
             )
@@ -74,22 +76,27 @@ def typecast_time(s): # does NOT store time zone information
         seconds, microseconds = seconds.split('.')
     else:
         microseconds = '0'
-    return datetime.time(int(hour), int(minutes), int(seconds), int(float('.'+microseconds) * 1000000))
+    return datetime.time(
+        int(hour),
+        int(minutes),
+        int(seconds),
+        int(float(f'.{microseconds}') * 1000000),
+    )
 
 def typecast_timestamp(s): # does NOT store time zone information
     # "2005-07-29 15:48:00.590358-05"
     # "2005-07-29 09:56:00-05"
     if not s: return None
-    if not ' ' in s: return typecast_date(s)
+    if ' ' not in s: return typecast_date(s)
     d, t = s.split()
     # Extract timezone information, if it exists. Currently we just throw
     # it away, but in the future we may make use of it.
     if '-' in t:
         t, tz = t.split('-', 1)
-        tz = '-' + tz
+        tz = f'-{tz}'
     elif '+' in t:
         t, tz = t.split('+', 1)
-        tz = '+' + tz
+        tz = f'+{tz}'
     else:
         tz = ''
     dates = d.split('-')
@@ -99,30 +106,32 @@ def typecast_timestamp(s): # does NOT store time zone information
         seconds, microseconds = seconds.split('.')
     else:
         microseconds = '0'
-    return datetime.datetime(int(dates[0]), int(dates[1]), int(dates[2]),
-        int(times[0]), int(times[1]), int(seconds), int((microseconds + '000000')[:6]))
+    return datetime.datetime(
+        int(dates[0]),
+        int(dates[1]),
+        int(dates[2]),
+        int(times[0]),
+        int(times[1]),
+        int(seconds),
+        int(f'{microseconds}000000'[:6]),
+    )
 
 def typecast_boolean(s):
     if s is None: return None
-    if not s: return False
-    return str(s)[0].lower() == 't'
+    return False if not s else str(s)[0].lower() == 't'
 
 def typecast_decimal(s):
-    if s is None or s == '':
-        return None
-    return decimal.Decimal(s)
+    return None if s is None or s == '' else decimal.Decimal(s)
 
 ###############################################
 # Converters from Python to database (string) #
 ###############################################
 
 def rev_typecast_boolean(obj, d):
-    return obj and '1' or '0'
+    return '1' if obj else '0'
 
 def rev_typecast_decimal(d):
-    if d is None:
-        return None
-    return str(d)
+    return None if d is None else str(d)
 
 def truncate_name(name, length=None, hash_len=4):
     """Shortens a string to a repeatable mangled version with the given length.
@@ -132,7 +141,7 @@ def truncate_name(name, length=None, hash_len=4):
 
     hash = md5_constructor(name).hexdigest()[:hash_len]
 
-    return '%s%s' % (name[:length-hash_len], hash)
+    return f'{name[:length - hash_len]}{hash}'
 
 def format_number(value, max_digits, decimal_places):
     """

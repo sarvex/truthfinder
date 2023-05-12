@@ -9,11 +9,7 @@ from django.utils import importlib
 class BaseMemcachedCache(BaseCache):
     def __init__(self, server, params, library, value_not_found_exception):
         super(BaseMemcachedCache, self).__init__(params)
-        if isinstance(server, basestring):
-            self._servers = server.split(';')
-        else:
-            self._servers = server
-
+        self._servers = server.split(';') if isinstance(server, basestring) else server
         # The exception type to catch from the underlying library for a key
         # that was not found. This is a ValueError for python-memcache,
         # pylibmc.NotFound for pylibmc, and cmemcache will return None without
@@ -56,9 +52,7 @@ class BaseMemcachedCache(BaseCache):
     def get(self, key, default=None, version=None):
         key = self.make_key(key, version=version)
         val = self._cache.get(key)
-        if val is None:
-            return default
-        return val
+        return default if val is None else val
 
     def set(self, key, value, timeout=0, version=None):
         key = self.make_key(key, version=version)
@@ -72,10 +66,8 @@ class BaseMemcachedCache(BaseCache):
         new_keys = map(lambda x: self.make_key(x, version=version), keys)
         ret = self._cache.get_multi(new_keys)
         if ret:
-            _ = {}
             m = dict(zip(new_keys, keys))
-            for k, v in ret.items():
-                _[m[k]] = v
+            _ = {m[k]: v for k, v in ret.items()}
             ret = _
         return ret
 
@@ -94,7 +86,7 @@ class BaseMemcachedCache(BaseCache):
         except self.LibraryValueNotFoundException:
             val = None
         if val is None:
-            raise ValueError("Key '%s' not found" % key)
+            raise ValueError(f"Key '{key}' not found")
         return val
 
     def decr(self, key, delta=1, version=None):
@@ -109,7 +101,7 @@ class BaseMemcachedCache(BaseCache):
         except self.LibraryValueNotFoundException:
             val = None
         if val is None:
-            raise ValueError("Key '%s' not found" % key)
+            raise ValueError(f"Key '{key}' not found")
         return val
 
     def set_many(self, data, timeout=0, version=None):

@@ -74,7 +74,7 @@ class ModPythonRequest(http.HttpRequest):
     def get_full_path(self):
         # RFC 3986 requires self._req.args to be in the ASCII range, but this
         # doesn't always happen, so rather than crash, we defensively encode it.
-        return '%s%s' % (self.path, self._req.args and ('?' + iri_to_uri(self._req.args)) or '')
+        return f"{self.path}{self._req.args and f'?{iri_to_uri(self._req.args)}' or ''}"
 
     def is_secure(self):
         try:
@@ -176,19 +176,16 @@ class ModPythonHandler(BaseHandler):
         set_script_prefix(req.get_options().get('django.root', ''))
         signals.request_started.send(sender=self.__class__)
         try:
-            try:
-                request = self.request_class(req)
-            except UnicodeDecodeError:
-                logger.warning('Bad Request (UnicodeDecodeError): %s' % request.path,
-                    exc_info=sys.exc_info(),
-                    extra={
-                        'status_code': 400,
-                        'request': request
-                    }
-                )
-                response = http.HttpResponseBadRequest()
-            else:
-                response = self.get_response(request)
+            request = self.request_class(req)
+        except UnicodeDecodeError:
+            logger.warning(
+                f'Bad Request (UnicodeDecodeError): {request.path}',
+                exc_info=sys.exc_info(),
+                extra={'status_code': 400, 'request': request},
+            )
+            response = http.HttpResponseBadRequest()
+        else:
+            response = self.get_response(request)
         finally:
             signals.request_finished.send(sender=self.__class__)
 

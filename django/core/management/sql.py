@@ -24,7 +24,11 @@ def sql_create(app, style, connection):
     app_models = models.get_models(app, include_auto_created=True)
     final_output = []
     tables = connection.introspection.table_names()
-    known_models = set([model for model in connection.introspection.installed_models(tables) if model not in app_models])
+    known_models = {
+        model
+        for model in connection.introspection.installed_models(tables)
+        if model not in app_models
+    }
     pending_references = {}
 
     for model in app_models:
@@ -38,14 +42,17 @@ def sql_create(app, style, connection):
         # Keep track of the fact that we've created the table for this model.
         known_models.add(model)
 
-    # Handle references to tables that are from other apps
-    # but don't exist physically.
-    not_installed_models = set(pending_references.keys())
-    if not_installed_models:
+    if not_installed_models := set(pending_references.keys()):
         alter_sql = []
         for model in not_installed_models:
-            alter_sql.extend(['-- ' + sql for sql in
-                connection.creation.sql_for_pending_references(model, style, pending_references)])
+            alter_sql.extend(
+                [
+                    f'-- {sql}'
+                    for sql in connection.creation.sql_for_pending_references(
+                        model, style, pending_references
+                    )
+                ]
+            )
         if alter_sql:
             final_output.append('-- The following references should be added but depend on non-existent tables:')
             final_output.extend(alter_sql)
@@ -62,11 +69,7 @@ def sql_delete(app, style, connection):
         cursor = None
 
     # Figure out which tables already exist
-    if cursor:
-        table_names = connection.introspection.get_table_list(cursor)
-    else:
-        table_names = []
-
+    table_names = connection.introspection.get_table_list(cursor) if cursor else []
     output = []
 
     # Output DROP TABLE statements for standard application tables.
@@ -117,10 +120,9 @@ def sql_flush(style, connection, only_django=False):
         tables = connection.introspection.django_table_names(only_existing=True)
     else:
         tables = connection.introspection.table_names()
-    statements = connection.ops.sql_flush(
+    return connection.ops.sql_flush(
         style, tables, connection.introspection.sequence_list()
     )
-    return statements
 
 def sql_custom(app, style, connection):
     "Returns a list of the custom table modifying SQL statements for the given app."
@@ -164,18 +166,20 @@ def custom_sql_for_model(model, style, connection):
 
     # Find custom SQL, if it's available.
     backend_name = connection.settings_dict['ENGINE'].split('.')[-1]
-    sql_files = [os.path.join(app_dir, "%s.%s.sql" % (opts.object_name.lower(), backend_name)),
-                 os.path.join(app_dir, "%s.sql" % opts.object_name.lower())]
+    sql_files = [
+        os.path.join(
+            app_dir, f"{opts.object_name.lower()}.{backend_name}.sql"
+        ),
+        os.path.join(app_dir, f"{opts.object_name.lower()}.sql"),
+    ]
     for sql_file in sql_files:
         if os.path.exists(sql_file):
-            fp = open(sql_file, 'U')
-            for statement in statements.split(fp.read().decode(settings.FILE_CHARSET)):
-                # Remove any comments from the file
-                statement = re.sub(ur"--.*([\n\Z]|$)", "", statement)
-                if statement.strip():
-                    output.append(statement + u";")
-            fp.close()
-
+            with open(sql_file, 'U') as fp:
+                for statement in statements.split(fp.read().decode(settings.FILE_CHARSET)):
+                    # Remove any comments from the file
+                    statement = re.sub(ur"--.*([\n\Z]|$)", "", statement)
+                    if statement.strip():
+                        output.append(f"{statement};")
     return output
 
 

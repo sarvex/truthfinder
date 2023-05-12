@@ -76,9 +76,9 @@ class DEIdentityCardNumberField(Field):
         if residence == '0000000000' or birthday == '0000000' or validity == '0000000':
             raise ValidationError(self.error_messages['invalid'])
 
-        all_digits = u"%s%s%s%s" % (residence, birthday, validity, checksum)
+        all_digits = f"{residence}{birthday}{validity}{checksum}"
         if not self.has_valid_checksum(residence) or not self.has_valid_checksum(birthday) or \
-            not self.has_valid_checksum(validity) or not self.has_valid_checksum(all_digits):
+                not self.has_valid_checksum(validity) or not self.has_valid_checksum(all_digits):
                 raise ValidationError(self.error_messages['invalid'])
 
-        return u'%s%s-%s-%s-%s' % (residence, origin, birthday, validity, checksum)
+        return f'{residence}{origin}-{birthday}-{validity}-{checksum}'

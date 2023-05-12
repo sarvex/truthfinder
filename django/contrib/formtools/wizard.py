@@ -58,22 +58,21 @@ class FormWizard(object):
         expected = self.security_hash(request, form)
         if constant_time_compare(token, expected):
             return True
-        else:
-            # Fall back to Django 1.2 method, for compatibility with forms that
-            # are in the middle of being used when the upgrade occurs. However,
-            # we don't want to do this fallback if a subclass has provided their
-            # own security_hash method - because they might have implemented a
-            # more secure method, and this would punch a hole in that.
+        # Fall back to Django 1.2 method, for compatibility with forms that
+        # are in the middle of being used when the upgrade occurs. However,
+        # we don't want to do this fallback if a subclass has provided their
+        # own security_hash method - because they might have implemented a
+        # more secure method, and this would punch a hole in that.
 
-            # PendingDeprecationWarning <- left here to remind us that this
-            # compatibility fallback should be removed in Django 1.5
-            FormWizard_expected = FormWizard.security_hash(self, request, form)
-            if expected == FormWizard_expected:
-                # They didn't override security_hash, do the fallback:
-                old_expected = security_hash(request, form)
-                return constant_time_compare(token, old_expected)
-            else:
-                return False
+        # PendingDeprecationWarning <- left here to remind us that this
+        # compatibility fallback should be removed in Django 1.5
+        FormWizard_expected = FormWizard.security_hash(self, request, form)
+        if expected == FormWizard_expected:
+            # They didn't override security_hash, do the fallback:
+            old_expected = security_hash(request, form)
+            return constant_time_compare(token, old_expected)
+        else:
+            return False
 
     @method_decorator(csrf_protect)
     def __call__(self, request, *args, **kwargs):
@@ -88,7 +87,7 @@ class FormWizard(object):
 
         # Sanity check.
         if current_step >= self.num_steps():
-            raise Http404('Step %s does not exist' % current_step)
+            raise Http404(f'Step {current_step} does not exist')
 
         # Validate and process all the previous forms before instantiating the
         # current step's form in case self.process_step makes changes to
@@ -120,9 +119,8 @@ class FormWizard(object):
 
             if not f.is_valid():
                 return self.render_revalidation_failure(request, i, f)
-            else:
-                self.process_step(request, f, i)
-                previous_form_list.append(f)
+            self.process_step(request, f, i)
+            previous_form_list.append(f)
 
         # Process the current step. If it's valid, go to the next step or call
         # done(), depending on whether any steps remain.
@@ -137,22 +135,20 @@ class FormWizard(object):
 
             if next_step == self.num_steps():
                 return self.done(request, previous_form_list + [form])
-            else:
-                form = self.get_form(next_step)
-                self.step = current_step = next_step
+            form = self.get_form(next_step)
+            self.step = current_step = next_step
 
         return self.render(form, request, current_step)
 
     def render(self, form, request, step, context=None):
         "Renders the given Form object, returning an HttpResponse."
-        old_data = request.POST
         prev_fields = []
-        if old_data:
+        if old_data := request.POST:
             hidden = forms.HiddenInput()
             # Collect all data from previous steps and render it as HTML hidden fields.
             for i in range(step):
                 old_form = self.get_form(i, old_data)
-                hash_name = 'hash_%s' % i
+                hash_name = f'hash_{i}'
                 prev_fields.extend([bf.as_hidden() for bf in old_form])
                 prev_fields.append(hidden.render(hash_name, old_data.get(hash_name, self.security_hash(request, old_form))))
         return self.render_template(request, form, ''.join(prev_fields), step, context)
@@ -284,4 +280,6 @@ class FormWizard(object):
         form_list is a list of Form instances, each containing clean, valid
         data.
         """
-        raise NotImplementedError("Your %s class has not defined a done() method, which is required." % self.__class__.__name__)
+        raise NotImplementedError(
+            f"Your {self.__class__.__name__} class has not defined a done() method, which is required."
+        )

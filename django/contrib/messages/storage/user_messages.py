@@ -40,9 +40,10 @@ class UserMessagesStorage(BaseStorage):
             # storages will also be read if used with FallbackStorage an empty
             # list is returned rather than None.
             return [], False
-        messages = []
-        for user_message in queryset:
-            messages.append(Message(constants.INFO, user_message.message))
+        messages = [
+            Message(constants.INFO, user_message.message)
+            for user_message in queryset
+        ]
         return messages, False
 
     def _store(self, messages, *args, **kwargs):

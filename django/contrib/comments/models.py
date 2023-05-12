@@ -77,7 +77,7 @@ class Comment(BaseCommentAbstractModel):
         verbose_name_plural = _('comments')
 
     def __unicode__(self):
-        return "%s: %s..." % (self.name, self.comment[:50])
+        return f"{self.name}: {self.comment[:50]}..."
 
     def save(self, *args, **kwargs):
         if self.submit_date is None:
@@ -182,8 +182,7 @@ class CommentFlag(models.Model):
         verbose_name_plural = _('comment flags')
 
     def __unicode__(self):
-        return "%s flag of comment ID %s by %s" % \
-            (self.flag, self.comment_id, self.user.username)
+        return f"{self.flag} flag of comment ID {self.comment_id} by {self.user.username}"
 
     def save(self, *args, **kwargs):
         if self.flag_date is None:

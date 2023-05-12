@@ -39,10 +39,7 @@ class ModelBase(type):
         new_class = super_new(cls, name, bases, {'__module__': module})
         attr_meta = attrs.pop('Meta', None)
         abstract = getattr(attr_meta, 'abstract', False)
-        if not attr_meta:
-            meta = getattr(new_class, 'Meta', None)
-        else:
-            meta = attr_meta
+        meta = getattr(new_class, 'Meta', None) if not attr_meta else attr_meta
         base_meta = getattr(new_class, '_meta', None)
 
         if getattr(meta, 'app_label', None) is None:
@@ -75,17 +72,17 @@ class ModelBase(type):
         is_proxy = new_class._meta.proxy
 
         if getattr(new_class, '_default_manager', None):
-            if not is_proxy:
-                # Multi-table inheritance doesn't inherit default manager from
-                # parents.
-                new_class._default_manager = None
-                new_class._base_manager = None
-            else:
+            if is_proxy:
                 # Proxy classes do inherit parent's default manager, if none is
                 # set explicitly.
                 new_class._default_manager = new_class._default_manager._copy_to_model(new_class)
                 new_class._base_manager = new_class._base_manager._copy_to_model(new_class)
 
+            else:
+                # Multi-table inheritance doesn't inherit default manager from
+                # parents.
+                new_class._default_manager = None
+                new_class._base_manager = None
         # Bail out early if we have already created this class.
         m = get_model(new_class._meta.app_label, name, False)
         if m is not None:
@@ -97,9 +94,9 @@ class ModelBase(type):
 
         # All the fields of any type declared on this model
         new_fields = new_class._meta.local_fields + \
-                     new_class._meta.local_many_to_many + \
-                     new_class._meta.virtual_fields
-        field_names = set([f.name for f in new_fields])
+                         new_class._meta.local_many_to_many + \
+                         new_class._meta.virtual_fields
+        field_names = {f.name for f in new_fields}
 
         # Basic setup for proxy models.
         if is_proxy:
@@ -107,18 +104,22 @@ class ModelBase(type):
             for parent in [cls for cls in parents if hasattr(cls, '_meta')]:
                 if parent._meta.abstract:
                     if parent._meta.fields:
-                        raise TypeError("Abstract base class containing model fields not permitted for proxy model '%s'." % name)
+                        raise TypeError(
+                            f"Abstract base class containing model fields not permitted for proxy model '{name}'."
+                        )
                     else:
                         continue
                 if base is not None:
-                    raise TypeError("Proxy model '%s' has more than one non-abstract model base class." % name)
+                    raise TypeError(
+                        f"Proxy model '{name}' has more than one non-abstract model base class."
+                    )
                 else:
                     base = parent
             if base is None:
-                    raise TypeError("Proxy model '%s' has no non-abstract model base class." % name)
+                raise TypeError(f"Proxy model '{name}' has no non-abstract model base class.")
             if (new_class._meta.local_fields or
                     new_class._meta.local_many_to_many):
-                raise FieldError("Proxy model '%s' contains model fields." % name)
+                raise FieldError(f"Proxy model '{name}' contains model fields.")
             while base._meta.proxy:
                 base = base._meta.proxy_for_model
             new_class._meta.setup_proxy(base)
@@ -152,7 +153,7 @@ class ModelBase(type):
                 if base in o2o_map:
                     field = o2o_map[base]
                 elif not is_proxy:
-                    attr_name = '%s_ptr' % base._meta.module_name
+                    attr_name = f'{base._meta.module_name}_ptr'
                     field = OneToOneField(base, name=attr_name,
                             auto_created=True, parent_link=True)
                     new_class.add_to_class(attr_name, field)
@@ -180,9 +181,9 @@ class ModelBase(type):
             for field in base._meta.virtual_fields:
                 if base._meta.abstract and field.name in field_names:
                     raise FieldError('Local field %r in class %r clashes '\
-                                     'with field of similar name from '\
-                                     'abstract base class %r' % \
-                                        (field.name, name, base.__name__))
+                                         'with field of similar name from '\
+                                         'abstract base class %r' % \
+                                            (field.name, name, base.__name__))
                 new_class.add_to_class(field.name, copy.deepcopy(field))
 
         if abstract:
@@ -202,20 +203,20 @@ class ModelBase(type):
         # registered version.
         return get_model(new_class._meta.app_label, name, False)
 
-    def copy_managers(cls, base_managers):
+    def copy_managers(self, base_managers):
         # This is in-place sorting of an Options attribute, but that's fine.
         base_managers.sort()
         for _, mgr_name, manager in base_managers:
-            val = getattr(cls, mgr_name, None)
+            val = getattr(self, mgr_name, None)
             if not val or val is manager:
-                new_manager = manager._copy_to_model(cls)
-                cls.add_to_class(mgr_name, new_manager)
+                new_manager = manager._copy_to_model(self)
+                self.add_to_class(mgr_name, new_manager)
 
-    def add_to_class(cls, name, value):
+    def add_to_class(self, name, value):
         if hasattr(value, 'contribute_to_class'):
-            value.contribute_to_class(cls, name)
+            value.contribute_to_class(self, name)
         else:
-            setattr(cls, name, value)
+            setattr(self, name, value)
 
     def _prepare(cls):
         """
@@ -232,14 +233,15 @@ class ModelBase(type):
             def make_foreign_order_accessors(field, model, cls):
                 setattr(
                     field.rel.to,
-                    'get_%s_order' % cls.__name__.lower(),
-                    curry(method_get_order, cls)
+                    f'get_{cls.__name__.lower()}_order',
+                    curry(method_get_order, cls),
                 )
                 setattr(
                     field.rel.to,
-                    'set_%s_order' % cls.__name__.lower(),
-                    curry(method_set_order, cls)
+                    f'set_{cls.__name__.lower()}_order',
+                    curry(method_set_order, cls),
                 )
+
             add_lazy_relation(
                 cls,
                 opts.order_with_respect_to,
@@ -249,7 +251,7 @@ class ModelBase(type):
 
         # Give the class a docstring -- its definition.
         if cls.__doc__ is None:
-            cls.__doc__ = "%s(%s)" % (cls.__name__, ", ".join([f.attname for f in opts.fields]))
+            cls.__doc__ = f'{cls.__name__}({", ".join([f.attname for f in opts.fields])})'
 
         if hasattr(cls, 'get_absolute_url'):
             cls.get_absolute_url = update_wrapper(curry(get_absolute_url, opts, cls.get_absolute_url),
@@ -355,14 +357,16 @@ class Model(object):
                 setattr(self, field.attname, val)
 
         if kwargs:
-            for prop in kwargs.keys():
+            for prop in kwargs:
                 try:
                     if isinstance(getattr(self.__class__, prop), property):
                         setattr(self, prop, kwargs.pop(prop))
                 except AttributeError:
                     pass
-            if kwargs:
-                raise TypeError("'%s' is an invalid keyword argument for this function" % kwargs.keys()[0])
+        if kwargs:
+            raise TypeError(
+                f"'{kwargs.keys()[0]}' is an invalid keyword argument for this function"
+            )
         self._original_pk = self.pk if self._meta.pk is not None else None
         super(Model, self).__init__()
         signals.post_init.send(sender=self.__class__, instance=self)
@@ -372,12 +376,12 @@ class Model(object):
             u = unicode(self)
         except (UnicodeEncodeError, UnicodeDecodeError):
             u = '[Bad Unicode data]'
-        return smart_str(u'<%s: %s>' % (self.__class__.__name__, u))
+        return smart_str(f'<{self.__class__.__name__}: {u}>')
 
     def __str__(self):
         if hasattr(self, '__unicode__'):
             return force_unicode(self).encode('utf-8')
-        return '%s object' % self.__class__.__name__
+        return f'{self.__class__.__name__} object'
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self._get_pk_val() == other._get_pk_val()
@@ -403,10 +407,10 @@ class Model(object):
         # and as a result, the super call will cause an infinite recursion.
         # See #10547 and #12121.
         defers = []
-        pk_val = None
         if self._deferred:
             from django.db.models.query_utils import deferred_class_factory
             factory = deferred_class_factory
+            pk_val = None
             for field in self._meta.fields:
                 if isinstance(self.__class__.__dict__.get(field.attname),
                         DeferredAttribute):

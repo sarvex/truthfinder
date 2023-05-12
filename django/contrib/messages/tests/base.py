@@ -53,11 +53,12 @@ class BaseTest(TestCase):
         # Backup these manually because we do not want them deleted.
         self._middleware_classes = settings.MIDDLEWARE_CLASSES
         self._template_context_processors = \
-           settings.TEMPLATE_CONTEXT_PROCESSORS
+               settings.TEMPLATE_CONTEXT_PROCESSORS
         self._installed_apps = settings.INSTALLED_APPS
         self._message_storage = settings.MESSAGE_STORAGE
-        settings.MESSAGE_STORAGE = '%s.%s' % (self.storage_class.__module__,
-                                              self.storage_class.__name__)
+        settings.MESSAGE_STORAGE = (
+            f'{self.storage_class.__module__}.{self.storage_class.__name__}'
+        )
         self.old_TEMPLATE_DIRS = settings.TEMPLATE_DIRS
         settings.TEMPLATE_DIRS = ()
         self.save_warnings_state()

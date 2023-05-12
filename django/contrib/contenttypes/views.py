@@ -9,14 +9,20 @@ def shortcut(request, content_type_id, object_id):
     try:
         content_type = ContentType.objects.get(pk=content_type_id)
         if not content_type.model_class():
-            raise http.Http404("Content type %s object has no associated model" % content_type_id)
+            raise http.Http404(
+                f"Content type {content_type_id} object has no associated model"
+            )
         obj = content_type.get_object_for_this_type(pk=object_id)
     except (ObjectDoesNotExist, ValueError):
-        raise http.Http404("Content type %s object %s doesn't exist" % (content_type_id, object_id))
+        raise http.Http404(
+            f"Content type {content_type_id} object {object_id} doesn't exist"
+        )
     try:
         absurl = obj.get_absolute_url()
     except AttributeError:
-        raise http.Http404("%s objects don't have get_absolute_url() methods" % content_type.name)
+        raise http.Http404(
+            f"{content_type.name} objects don't have get_absolute_url() methods"
+        )
 
     # Try to figure out the object's domain, so we can do a cross-site redirect
     # if necessary.
@@ -62,10 +68,7 @@ def shortcut(request, content_type_id, object_id):
         except Site.DoesNotExist:
             pass
 
-    # If all that malarkey found an object domain, use it. Otherwise, fall back
-    # to whatever get_absolute_url() returned.
-    if object_domain is not None:
-        protocol = request.is_secure() and 'https' or 'http'
-        return http.HttpResponseRedirect('%s://%s%s' % (protocol, object_domain, absurl))
-    else:
+    if object_domain is None:
         return http.HttpResponseRedirect(absurl)
+    protocol = 'https' if request.is_secure() else 'http'
+    return http.HttpResponseRedirect(f'{protocol}://{object_domain}{absurl}')

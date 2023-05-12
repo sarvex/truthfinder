@@ -171,22 +171,23 @@ def sort_dependencies(app_list):
         while model_dependencies:
             model, deps = model_dependencies.pop()
 
-            # If all of the models in the dependency list are either already
-            # on the final model list, or not on the original serialization list,
-            # then we've found another model with all it's dependencies satisfied.
-            found = True
-            for candidate in ((d not in models or d in model_list) for d in deps):
-                if not candidate:
-                    found = False
+            found = all((d not in models or d in model_list) for d in deps)
             if found:
                 model_list.append(model)
                 changed = True
             else:
                 skipped.append((model, deps))
         if not changed:
-            raise CommandError("Can't resolve dependencies for %s in serialized app list." %
-                ', '.join('%s.%s' % (model._meta.app_label, model._meta.object_name)
-                for model, deps in sorted(skipped, key=lambda obj: obj[0].__name__))
+            raise CommandError(
+                (
+                    "Can't resolve dependencies for %s in serialized app list."
+                    % ', '.join(
+                        f'{model._meta.app_label}.{model._meta.object_name}'
+                        for model, deps in sorted(
+                            skipped, key=lambda obj: obj[0].__name__
+                        )
+                    )
+                )
             )
         model_dependencies = skipped
 

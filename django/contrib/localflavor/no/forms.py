@@ -61,17 +61,13 @@ class NOSocialSecurityNumber(Field):
             raise ValidationError(self.error_messages['invalid'])
 
         sexnum = int(value[8])
-        if sexnum % 2 == 0:
-            self.gender = 'F'
-        else:
-            self.gender = 'M'
-
+        self.gender = 'F' if sexnum % 2 == 0 else 'M'
         digits = map(int, list(value))
         weight_1 = [3, 7, 6, 1, 8, 9, 4, 5, 2, 1, 0]
         weight_2 = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2, 1]
 
         def multiply_reduce(aval, bval):
-            return sum([(a * b) for (a, b) in zip(aval, bval)])
+            return sum(a * b for (a, b) in zip(aval, bval))
 
         if multiply_reduce(digits, weight_1) % 11 != 0:
             raise ValidationError(self.error_messages['invalid'])

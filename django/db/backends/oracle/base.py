@@ -115,9 +115,9 @@ WHEN (new.%(col_name)s IS NULL)
         # http://download-east.oracle.com/docs/cd/B10501_01/server.920/a96540/functions42a.htm#1017163
         if lookup_type == 'week_day':
             # TO_CHAR(field, 'D') returns an integer from 1-7, where 1=Sunday.
-            return "TO_CHAR(%s, 'D')" % field_name
+            return f"TO_CHAR({field_name}, 'D')"
         else:
-            return "EXTRACT(%s FROM %s)" % (lookup_type, field_name)
+            return f"EXTRACT({lookup_type} FROM {field_name})"
 
     def date_interval_sql(self, sql, connector, timedelta):
         """
@@ -134,13 +134,11 @@ WHEN (new.%(col_name)s IS NULL)
                 timedelta.microseconds, day_precision)
 
     def date_trunc_sql(self, lookup_type, field_name):
-        # Oracle uses TRUNC() for both dates and numbers.
-        # http://download-east.oracle.com/docs/cd/B10501_01/server.920/a96540/functions155a.htm#SQLRF06151
-        if lookup_type == 'day':
-            sql = 'TRUNC(%s)' % field_name
-        else:
-            sql = "TRUNC(%s, '%s')" % (field_name, lookup_type)
-        return sql
+        return (
+            f'TRUNC({field_name})'
+            if lookup_type == 'day'
+            else f"TRUNC({field_name}, '{lookup_type}')"
+        )
 
     def convert_values(self, value, field):
         if isinstance(value, Database.LOB):
@@ -197,20 +195,17 @@ WHEN (new.%(col_name)s IS NULL)
         return " DEFERRABLE INITIALLY DEFERRED"
 
     def drop_sequence_sql(self, table):
-        return "DROP SEQUENCE %s;" % self.quote_name(get_sequence_name(table))
+        return f"DROP SEQUENCE {self.quote_name(get_sequence_name(table))};"
 
     def fetch_returned_insert_id(self, cursor):
         return long(cursor._insert_id_var.getvalue())
 
     def field_cast_sql(self, db_type):
-        if db_type and db_type.endswith('LOB'):
-            return "DBMS_LOB.SUBSTR(%s)"
-        else:
-            return "%s"
+        return "DBMS_LOB.SUBSTR(%s)" if db_type and db_type.endswith('LOB') else "%s"
 
     def last_insert_id(self, cursor, table_name, pk_name):
         sq_name = get_sequence_name(table_name)
-        cursor.execute('SELECT "%s".currval FROM dual' % sq_name)
+        cursor.execute(f'SELECT "{sq_name}".currval FROM dual')
         return cursor.fetchone()[0]
 
     def lookup_cast(self, lookup_type):
@@ -228,9 +223,7 @@ WHEN (new.%(col_name)s IS NULL)
         return x
 
     def process_clob(self, value):
-        if value is None:
-            return u''
-        return force_unicode(value.read())
+        return u'' if value is None else force_unicode(value.read())
 
     def quote_name(self, name):
         # SQL92 requires delimited (quoted) names to be case-sensitive.  When
@@ -249,10 +242,7 @@ WHEN (new.%(col_name)s IS NULL)
         raise NotImplementedError("Regexes are not supported in Oracle before version 10g.")
 
     def regex_lookup_10(self, lookup_type):
-        if lookup_type == 'regex':
-            match_option = "'c'"
-        else:
-            match_option = "'i'"
+        match_option = "'c'" if lookup_type == 'regex' else "'i'"
         return 'REGEXP_LIKE(%%s, %%s, %s)' % match_option
 
     def regex_lookup(self, lookup_type):
@@ -266,10 +256,10 @@ WHEN (new.%(col_name)s IS NULL)
         return "RETURNING %s INTO %%s", (InsertIdVar(),)
 
     def savepoint_create_sql(self, sid):
-        return convert_unicode("SAVEPOINT " + self.quote_name(sid))
+        return convert_unicode(f"SAVEPOINT {self.quote_name(sid)}")
 
     def savepoint_rollback_sql(self, sid):
-        return convert_unicode("ROLLBACK TO SAVEPOINT " + self.quote_name(sid))
+        return convert_unicode(f"ROLLBACK TO SAVEPOINT {self.quote_name(sid)}")
 
     def sql_flush(self, style, tables, sequences):
         # Return a list of 'TRUNCATE x;', 'TRUNCATE y;',
@@ -277,11 +267,10 @@ WHEN (new.%(col_name)s IS NULL)
         if tables:
             # Oracle does support TRUNCATE, but it seems to get us into
             # FK referential trouble, whereas DELETE FROM table works.
-            sql = ['%s %s %s;' % \
-                    (style.SQL_KEYWORD('DELETE'),
-                     style.SQL_KEYWORD('FROM'),
-                     style.SQL_FIELD(self.quote_name(table)))
-                    for table in tables]
+            sql = [
+                f"{style.SQL_KEYWORD('DELETE')} {style.SQL_KEYWORD('FROM')} {style.SQL_FIELD(self.quote_name(table))};"
+                for table in tables
+            ]
             # Since we've just deleted all the rows, running our sequence
             # ALTER code will reset the sequence to 0.
             for sequence_info in sequences:
@@ -326,8 +315,7 @@ WHEN (new.%(col_name)s IS NULL)
         return ''
 
     def tablespace_sql(self, tablespace, inline=False):
-        return "%sTABLESPACE %s" % ((inline and "USING INDEX " or ""),
-            self.quote_name(tablespace))
+        return f'{inline and "USING INDEX " or ""}TABLESPACE {self.quote_name(tablespace)}'
 
     def value_to_db_datetime(self, value):
         # Oracle doesn't support tz-aware datetimes
@@ -351,16 +339,14 @@ WHEN (new.%(col_name)s IS NULL)
                                  value.second, value.microsecond)
 
     def year_lookup_bounds_for_date_field(self, value):
-        first = '%s-01-01'
-        second = '%s-12-31'
-        return [first % value, second % value]
+        return [f'{value}-01-01', f'{value}-12-31']
 
     def combine_expression(self, connector, sub_expressions):
         "Oracle requires special cases for %% and & operators in query expressions"
         if connector == '%%':
-            return 'MOD(%s)' % ','.join(sub_expressions)
+            return f"MOD({','.join(sub_expressions)})"
         elif connector == '&':
-            return 'BITAND(%s)' % ','.join(sub_expressions)
+            return f"BITAND({','.join(sub_expressions)})"
         elif connector == '|':
             raise NotImplementedError("Bit-wise or is not supported in Oracle.")
         return super(DatabaseOperations, self).combine_expression(connector, sub_expressions)
@@ -434,8 +420,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                                    settings_dict['NAME'])
         else:
             dsn = settings_dict['NAME']
-        return "%s/%s@%s" % (settings_dict['USER'],
-                             settings_dict['PASSWORD'], dsn)
+        return f"{settings_dict['USER']}/{settings_dict['PASSWORD']}@{dsn}"
 
     def _cursor(self):
         cursor = None
@@ -460,9 +445,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 # instance per thread, since subsequent connections will use
                 # the same settings.
                 try:
-                    cursor.execute("SELECT 1 FROM DUAL WHERE DUMMY %s"
-                                   % self._standard_operators['contains'],
-                                   ['X'])
+                    cursor.execute(
+                        f"SELECT 1 FROM DUAL WHERE DUMMY {self._standard_operators['contains']}",
+                        ['X'],
+                    )
                 except utils.DatabaseError:
                     self.operators = self._likec_operators
                 else:
@@ -600,7 +586,7 @@ class FormatStylePlaceholderCursor(object):
         self.cursor.arraysize = 100
 
     def _format_params(self, params):
-        return tuple([OracleParam(p, self, True) for p in params])
+        return tuple(OracleParam(p, self, True) for p in params)
 
     def _guess_input_sizes(self, params_list):
         sizes = [None] * len(params_list[0])
@@ -665,19 +651,15 @@ class FormatStylePlaceholderCursor(object):
 
     def fetchone(self):
         row = self.cursor.fetchone()
-        if row is None:
-            return row
-        return _rowfactory(row, self.cursor)
+        return row if row is None else _rowfactory(row, self.cursor)
 
     def fetchmany(self, size=None):
         if size is None:
             size = self.arraysize
-        return tuple([_rowfactory(r, self.cursor)
-                      for r in self.cursor.fetchmany(size)])
+        return tuple(_rowfactory(r, self.cursor) for r in self.cursor.fetchmany(size))
 
     def fetchall(self):
-        return tuple([_rowfactory(r, self.cursor)
-                      for r in self.cursor.fetchall()])
+        return tuple(_rowfactory(r, self.cursor) for r in self.cursor.fetchall())
 
     def var(self, *args):
         return VariableWrapper(self.cursor.var(*args))
@@ -722,10 +704,7 @@ def _rowfactory(row, cursor):
                     # NUMBER column: decimal-precision floating point
                     # This will normally be an integer from a sequence,
                     # but it could be a decimal value.
-                    if '.' in value:
-                        value = Decimal(value)
-                    else:
-                        value = int(value)
+                    value = Decimal(value) if '.' in value else int(value)
                 else:
                     # FLOAT column: binary-precision floating point.
                     # This comes from FloatField columns.
@@ -733,10 +712,7 @@ def _rowfactory(row, cursor):
             elif precision > 0:
                 # NUMBER(p,s) column: decimal-precision fixed point.
                 # This comes from IntField and DecimalField columns.
-                if scale == 0:
-                    value = int(value)
-                else:
-                    value = Decimal(value)
+                value = int(value) if scale == 0 else Decimal(value)
             elif '.' in value:
                 # No type information. This normally comes from a
                 # mathematical expression in the SELECT list. Guess int
@@ -756,9 +732,7 @@ def to_unicode(s):
     Convert strings to Unicode objects (and return all other data types
     unchanged).
     """
-    if isinstance(s, basestring):
-        return force_unicode(s)
-    return s
+    return force_unicode(s) if isinstance(s, basestring) else s
 
 
 def _get_sequence_reset_sql():
@@ -780,9 +754,9 @@ END;
 
 def get_sequence_name(table):
     name_length = DatabaseOperations().max_name_length() - 3
-    return '%s_SQ' % util.truncate_name(table, name_length).upper()
+    return f'{util.truncate_name(table, name_length).upper()}_SQ'
 
 
 def get_trigger_name(table):
     name_length = DatabaseOperations().max_name_length() - 3
-    return '%s_TR' % util.truncate_name(table, name_length).upper()
+    return f'{util.truncate_name(table, name_length).upper()}_TR'

@@ -55,11 +55,7 @@ class DataSource(GDALBase):
     #### Python 'magic' routines ####
     def __init__(self, ds_input, ds_driver=False, write=False):
         # The write flag.
-        if write:
-            self._write = 1
-        else:
-            self._write = 0
-
+        self._write = 1 if write else 0
         # Registering all the drivers, this needs to be done
         #  _before_ we try to open up a data source.
         if not capi.get_driver_count():
@@ -74,18 +70,18 @@ class DataSource(GDALBase):
             except OGRException:
                 # Making the error message more clear rather than something
                 # like "Invalid pointer returned from OGROpen".
-                raise OGRException('Could not open the datasource at "%s"' % ds_input)
+                raise OGRException(f'Could not open the datasource at "{ds_input}"')
         elif isinstance(ds_input, self.ptr_type) and isinstance(ds_driver, Driver.ptr_type):
             ds = ds_input
         else:
-            raise OGRException('Invalid data source input type: %s' % type(ds_input))
+            raise OGRException(f'Invalid data source input type: {type(ds_input)}')
 
         if bool(ds):
             self.ptr = ds
             self.driver = Driver(ds_driver)
         else:
-            # Raise an exception if the returned pointer is NULL 
-            raise OGRException('Invalid data source file "%s"' % ds_input)
+            # Raise an exception if the returned pointer is NULL
+            raise OGRException(f'Invalid data source file "{ds_input}"')
 
     def __del__(self):
         "Destroys this DataStructure object."
@@ -100,13 +96,14 @@ class DataSource(GDALBase):
         "Allows use of the index [] operator to get a layer at the index."
         if isinstance(index, basestring):
             l = capi.get_layer_by_name(self.ptr, index)
-            if not l: raise OGRIndexError('invalid OGR Layer name given: "%s"' % index)
+            if not l:
+                raise OGRIndexError(f'invalid OGR Layer name given: "{index}"')
         elif isinstance(index, int):
             if index < 0 or index >= self.layer_count:
                 raise OGRIndexError('index out of range')
             l = capi.get_layer(self._ptr, index)
         else:
-            raise TypeError('Invalid index type: %s' % type(index))
+            raise TypeError(f'Invalid index type: {type(index)}')
         return Layer(l, self)
         
     def __len__(self):
@@ -115,7 +112,7 @@ class DataSource(GDALBase):
 
     def __str__(self):
         "Returns OGR GetName and Driver for the Data Source."
-        return '%s (%s)' % (self.name, str(self.driver))
+        return f'{self.name} ({str(self.driver)})'
 
     @property
     def layer_count(self):

@@ -32,6 +32,5 @@ class PhoneNumberField(CharField):
 
     def formfield(self, **kwargs):
         from django.contrib.localflavor.us.forms import USPhoneNumberField
-        defaults = {'form_class': USPhoneNumberField}
-        defaults.update(kwargs)
+        defaults = {'form_class': USPhoneNumberField} | kwargs
         return super(PhoneNumberField, self).formfield(**defaults)

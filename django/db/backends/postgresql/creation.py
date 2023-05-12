@@ -33,7 +33,7 @@ class DatabaseCreation(BaseDatabaseCreation):
     def sql_table_creation_suffix(self):
         assert self.connection.settings_dict['TEST_COLLATION'] is None, "PostgreSQL does not support collation setting at database creation time."
         if self.connection.settings_dict['TEST_CHARSET']:
-            return "WITH ENCODING '%s'" % self.connection.settings_dict['TEST_CHARSET']
+            return f"WITH ENCODING '{self.connection.settings_dict['TEST_CHARSET']}'"
         return ''
 
     def sql_indexes_for_field(self, model, f, style):
@@ -43,22 +43,30 @@ class DatabaseCreation(BaseDatabaseCreation):
             tablespace = f.db_tablespace or model._meta.db_tablespace
             if tablespace:
                 sql = self.connection.ops.tablespace_sql(tablespace)
-                if sql:
-                    tablespace_sql = ' ' + sql
-                else:
-                    tablespace_sql = ''
+                tablespace_sql = f' {sql}' if sql else ''
             else:
                 tablespace_sql = ''
 
             def get_index_sql(index_name, opclass=''):
-                return (style.SQL_KEYWORD('CREATE INDEX') + ' ' +
-                        style.SQL_TABLE(qn(truncate_name(index_name,self.connection.ops.max_name_length()))) + ' ' +
-                        style.SQL_KEYWORD('ON') + ' ' +
-                        style.SQL_TABLE(qn(db_table)) + ' ' +
-                        "(%s%s)" % (style.SQL_FIELD(qn(f.column)), opclass) +
-                        "%s;" % tablespace_sql)
+                return (
+                    style.SQL_KEYWORD('CREATE INDEX')
+                    + ' '
+                    + style.SQL_TABLE(
+                        qn(
+                            truncate_name(
+                                index_name, self.connection.ops.max_name_length()
+                            )
+                        )
+                    )
+                    + ' '
+                    + style.SQL_KEYWORD('ON')
+                    + ' '
+                    + style.SQL_TABLE(qn(db_table))
+                    + ' '
+                    + f"({style.SQL_FIELD(qn(f.column))}{opclass})"
+                ) + f"{tablespace_sql};"
 
-            output = [get_index_sql('%s_%s' % (db_table, f.column))]
+            output = [get_index_sql(f'{db_table}_{f.column}')]
 
             # Fields with database column types of `varchar` and `text` need
             # a second index that specifies their operator class, which is
@@ -66,11 +74,17 @@ class DatabaseCreation(BaseDatabaseCreation):
             # C locale. See #12234.
             db_type = f.db_type(connection=self.connection)
             if db_type.startswith('varchar'):
-                output.append(get_index_sql('%s_%s_like' % (db_table, f.column),
-                                            ' varchar_pattern_ops'))
+                output.append(
+                    get_index_sql(
+                        f'{db_table}_{f.column}_like', ' varchar_pattern_ops'
+                    )
+                )
             elif db_type.startswith('text'):
-                output.append(get_index_sql('%s_%s_like' % (db_table, f.column),
-                                            ' text_pattern_ops'))
+                output.append(
+                    get_index_sql(
+                        f'{db_table}_{f.column}_like', ' text_pattern_ops'
+                    )
+                )
         else:
             output = []
         return output

@@ -53,13 +53,13 @@ class BaseResolver(object):
             self._convert_insert_query(query, lookup)
     
     def _convert_insert_query(self, query, lookup):
-        if not lookup.model == query.model:
+        if lookup.model != query.model:
             return
-                    
+
         position = self.get_query_position(query, lookup)
         if position is None:
             return
-        
+
         value = self.get_value(lookup.model, lookup.field_name, query)
         value = lookup.convert_value(value)
         query.values[position] = (self.get_index(lookup), value)
@@ -128,13 +128,16 @@ class BaseResolver(object):
         return self.index_map[lookup]
     
     def get_query_position(self, query, lookup):
-        for index, (field, query_value) in enumerate(query.values[:]):
-            if field is self.get_index(lookup):
-                return index
-        return None
+        return next(
+            (
+                index
+                for index, (field, query_value) in enumerate(query.values[:])
+                if field is self.get_index(lookup)
+            ),
+            None,
+        )
 
 def unref_alias(query, alias):
-    table_name = query.alias_map[alias][TABLE_NAME]
     query.alias_refcount[alias] -= 1
     if query.alias_refcount[alias] < 1:
         # Remove all information about the join
@@ -142,6 +145,7 @@ def unref_alias(query, alias):
         del query.join_map[query.rev_join_map[alias]]
         del query.rev_join_map[alias]
         del query.alias_map[alias]
+        table_name = query.alias_map[alias][TABLE_NAME]
         query.table_map[table_name].remove(alias)
         if len(query.table_map[table_name]) == 0:
             del query.table_map[table_name]
@@ -246,27 +250,28 @@ class ConstantFieldJOINResolver(BaseResolver):
     def get_target_value(self, start_model, field_chain, pk):
         fields = field_chain.split('__')
         foreign_key = start_model._meta.get_field(fields[0])
-        
+
         if not foreign_key.rel:
             # field isn't a related one, so return the value itself
             return pk
-        
+
         target_model = foreign_key.rel.to
         foreignkey = target_model.objects.all().get(pk=pk)
         for value in fields[1:-1]:
             foreignkey = getattr(foreignkey, value)
-        
+
         if isinstance(foreignkey._meta.get_field(fields[-1]), models.ForeignKey):
-            return getattr(foreignkey, '%s_id' % fields[-1])
+            return getattr(foreignkey, f'{fields[-1]}_id')
         else:
             return getattr(foreignkey, fields[-1])
     
     def add_column_to_name(self, model, field_name):
         model_chain = self.get_model_chain(model, field_name)
-        column_chain = ''
         field_names = field_name.split('__')
-        for model, name in zip(model_chain, field_names):
-            column_chain += model._meta.get_field(name).column + '__'
+        column_chain = ''.join(
+            f'{model._meta.get_field(name).column}__'
+            for model, name in zip(model_chain, field_names)
+        )
         self.column_to_name[column_chain[:-2]] = field_name
         
     def unref_alias(self, query, alias):
@@ -279,7 +284,7 @@ class ConstantFieldJOINResolver(BaseResolver):
             while alias:
                 join = query.alias_map.get(alias)
                 if join and join[JOIN_TYPE] == 'INNER JOIN':
-                    column_chain += '__' + join[LHS_JOIN_COL]
+                    column_chain += f'__{join[LHS_JOIN_COL]}'
                     alias = query.alias_map[alias][LHS_ALIAS]
                 else:
                     alias = None
@@ -351,15 +356,22 @@ class InMemoryJOINResolver(ConstantFieldJOINResolver):
 
         if field_chain is None:
             return
-        
+
         if '__' not in field_chain:
             return super(ConstantFieldJOINResolver, self).convert_filter(query,
                 filters, child, index)
-        
+
         pks = self.get_pks(query, field_chain, lookup_type, value)
         self.resolve_join(query, child)
-        self._convert_filter(query, filters, child, index, 'in',
-                             (pk for pk in pks), field_chain.split('__')[0])
+        self._convert_filter(
+            query,
+            filters,
+            child,
+            index,
+            'in',
+            iter(pks),
+            field_chain.split('__')[0],
+        )
         
     def tree_contains(self, filters, to_find, func):
         result = False
@@ -393,13 +405,12 @@ class InMemoryJOINResolver(ConstantFieldJOINResolver):
     def index_name(self, lookup):
         # use another index_name to avoid conflicts with lookups defined on the
         # target model which are handled by the BaseBackend
-        return lookup.index_name + '_in_memory_join'
+        return f'{lookup.index_name}_in_memory_join'
     
     def get_pks(self, query, field_chain, lookup_type, value):
         model_chain = self.get_model_chain(query.model, field_chain)
-                
-        first_lookup = {'%s__%s' %(field_chain.rsplit('__', 1)[-1],
-                                   lookup_type): value}
+
+        first_lookup = {f"{field_chain.rsplit('__', 1)[-1]}__{lookup_type}": value}
         self.combine_with_same_level_filter(first_lookup, query, field_chain)
         pks = model_chain[-1].objects.all().filter(**first_lookup).values_list(
             'id', flat=True)
@@ -408,8 +419,7 @@ class InMemoryJOINResolver(ConstantFieldJOINResolver):
                   for i in range(field_chain.count('__'))]
         lookup = {}
         for model, chain in reversed(zip(model_chain[1:-1], chains[:-1])):
-            lookup.update({'%s__%s' %(chain.rsplit('__', 1)[-1], 'in'):
-                           (pk for pk in pks)})
+            lookup[f"{chain.rsplit('__', 1)[-1]}__in"] = iter(pks)
             self.combine_with_same_level_filter(lookup, query, chain)
             pks = model.objects.all().filter(**lookup).values_list('id', flat=True)
         return pks
@@ -422,12 +432,11 @@ class InMemoryJOINResolver(ConstantFieldJOINResolver):
             if chain == field_chain:
                 continue
             if field_chain.rsplit('__', 1)[0] == chain.rsplit('__', 1)[0]:
-                lookup_updates ['%s__%s' %(chain.rsplit('__', 1)[1], child[1])] \
-                    = child[3]
-                
+                lookup_updates[f"{chain.rsplit('__', 1)[1]}__{child[1]}"] = child[3]
+
                 self.remove_child(query.where, child)
                 self.resolve_join(query, child)
-                # TODO: update query.alias_refcount correctly!
+                        # TODO: update query.alias_refcount correctly!
         lookup.update(lookup_updates)
                 
     def remove_child(self, filters, to_remove):
@@ -445,11 +454,7 @@ class InMemoryJOINResolver(ConstantFieldJOINResolver):
                 self.remove_child(filters, child)
     
     def _remove_child(self, filters, to_remove):
-        result = []
-        for child in filters.children[:]:
-            if child is to_remove:
-                continue
-            result.append(child)
+        result = [child for child in filters.children[:] if child is not to_remove]
         filters.children = result
     
     def get_all_field_chains(self, query, filters):
@@ -458,8 +463,6 @@ class InMemoryJOINResolver(ConstantFieldJOINResolver):
         field_chains = {}
         all_filters = self.get_all_filters(filters)
         for filters, child, index in all_filters:
-            field_chain = self.get_field_chain(query, child[0])
-            # field_chain can be None if the user didn't specified an index for it
-            if field_chain:
+            if field_chain := self.get_field_chain(query, child[0]):
                 field_chains[field_chain] = child
         return field_chains

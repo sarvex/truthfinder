@@ -64,7 +64,7 @@ def load_command_class(app_name, name):
     class instance. All errors raised by the import process
     (ImportError, AttributeError) are allowed to propagate.
     """
-    module = import_module('%s.management.commands.%s' % (app_name, name))
+    module = import_module(f'{app_name}.management.commands.{name}')
     return module.Command()
 
 def get_commands():
@@ -114,8 +114,9 @@ def get_commands():
         for app_name in apps:
             try:
                 path = find_management_module(app_name)
-                _commands.update(dict([(name, app_name)
-                                       for name in find_commands(path)]))
+                _commands |= dict(
+                    [(name, app_name) for name in find_commands(path)]
+                )
             except ImportError:
                 pass # No management module - ignore this app
 
@@ -154,15 +155,16 @@ def call_command(name, *args, **options):
     except KeyError:
         raise CommandError("Unknown command: %r" % name)
 
-    # Grab out a list of defaults from the options. optparse does this for us
-    # when the script runs from the command line, but since call_command can
-    # be called programatically, we need to simulate the loading and handling
-    # of defaults (see #10080 for details).
-    defaults = dict([(o.dest, o.default)
-                     for o in klass.option_list
-                     if o.default is not NO_DEFAULT])
-    defaults.update(options)
-
+    defaults = (
+        dict(
+            [
+                (o.dest, o.default)
+                for o in klass.option_list
+                if o.default is not NO_DEFAULT
+            ]
+        )
+        | options
+    )
     return klass.execute(*args, **defaults)
 
 class LaxOptionParser(OptionParser):
@@ -201,7 +203,7 @@ class LaxOptionParser(OptionParser):
         while rargs:
             arg = rargs[0]
             try:
-                if arg[0:2] == "--" and len(arg) > 2:
+                if arg[:2] == "--" and len(arg) > 2:
                     # process a single long option (possibly with value(s))
                     # the superclass code pops the arg off rargs
                     self._process_long_opt(rargs, values)
@@ -234,12 +236,15 @@ class ManagementUtility(object):
         """
         Returns the script's main help text, as a string.
         """
-        usage = ['',"Type '%s help <subcommand>' for help on a specific subcommand." % self.prog_name,'']
-        usage.append('Available subcommands:')
+        usage = [
+            '',
+            f"Type '{self.prog_name} help <subcommand>' for help on a specific subcommand.",
+            '',
+            'Available subcommands:',
+        ]
         commands = get_commands().keys()
         commands.sort()
-        for cmd in commands:
-            usage.append('  %s' % cmd)
+        usage.extend(f'  {cmd}' for cmd in commands)
         return '\n'.join(usage)
 
     def fetch_command(self, subcommand):
@@ -252,14 +257,13 @@ class ManagementUtility(object):
             app_name = get_commands()[subcommand]
         except KeyError:
             sys.stderr.write("Unknown command: %r\nType '%s help' for usage.\n" % \
-                (subcommand, self.prog_name))
+                    (subcommand, self.prog_name))
             sys.exit(1)
-        if isinstance(app_name, BaseCommand):
-            # If the command is already loaded, use it directly.
-            klass = app_name
-        else:
-            klass = load_command_class(app_name, subcommand)
-        return klass
+        return (
+            app_name
+            if isinstance(app_name, BaseCommand)
+            else load_command_class(app_name, subcommand)
+        )
 
     def autocomplete(self):
         """
@@ -411,7 +415,7 @@ def setup_environ(settings_mod, original_settings_path=None):
     if original_settings_path:
         os.environ['DJANGO_SETTINGS_MODULE'] = original_settings_path
     else:
-        os.environ['DJANGO_SETTINGS_MODULE'] = '%s.%s' % (project_name, settings_name)
+        os.environ['DJANGO_SETTINGS_MODULE'] = f'{project_name}.{settings_name}'
 
     # Import the project module. We add the parent directory to PYTHONPATH to
     # avoid some of the path errors new users can have.

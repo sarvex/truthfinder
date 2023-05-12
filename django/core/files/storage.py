@@ -73,7 +73,7 @@ class Storage(object):
         count = itertools.count(1)
         while self.exists(name):
             # file_ext includes the dot.
-            name = os.path.join(dir_name, "%s_%s%s" % (file_root, count.next(), file_ext))
+            name = os.path.join(dir_name, f"{file_root}_{count.next()}{file_ext}")
 
         return name
 
@@ -231,7 +231,7 @@ class FileSystemStorage(Storage):
         try:
             path = safe_join(self.location, name)
         except ValueError:
-            raise SuspiciousOperation("Attempted access to '%s' denied." % name)
+            raise SuspiciousOperation(f"Attempted access to '{name}' denied.")
         return os.path.normpath(path)
 
     def size(self, name):

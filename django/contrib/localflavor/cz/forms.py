@@ -64,7 +64,7 @@ class CZBirthNumberField(Field):
 
         # Three digits for verification number were used until 1. january 1954
         if len(id) == 3:
-            return u'%s' % value
+            return f'{value}'
 
         # Birth number is in format YYMMDD. Females have month value raised by 50.
         # In case that all possible number are already used (for given date),
@@ -82,9 +82,8 @@ class CZBirthNumberField(Field):
                 raise ValidationError(self.error_messages['invalid_gender'])
 
             month = int(birth[2:4]) - female_const
-            if (not 1 <= month <= 12):
-                if (not 1 <= (month - 20) <= 12):
-                    raise ValidationError(self.error_messages['invalid'])
+            if (not 1 <= month <= 12) and (not 1 <= (month - 20) <= 12):
+                raise ValidationError(self.error_messages['invalid'])
 
         day = int(birth[4:6])
         if not (1 <= day <= 31):
@@ -99,7 +98,7 @@ class CZBirthNumberField(Field):
         modulo = int(birth + id[:3]) % 11
 
         if (modulo == int(id[-1])) or (modulo == 10 and id[-1] == '0'):
-            return u'%s' % value
+            return f'{value}'
         else:
             raise ValidationError(self.error_messages['invalid'])
 
@@ -137,9 +136,9 @@ class CZICNumberField(Field):
         # in other case, last digin is 11 - remainder
 
         if (not remainder % 10 and check == 1) or \
-        (remainder == 1 and check == 0) or \
-        (check == (11 - remainder)):
-            return u'%s' % value
+            (remainder == 1 and check == 0) or \
+            (check == (11 - remainder)):
+            return f'{value}'
 
         raise ValidationError(self.error_messages['invalid'])
 

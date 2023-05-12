@@ -43,14 +43,13 @@ class UnicodeCursorWrapper(object):
         self.charset = charset
 
     def format_params(self, params):
-        if isinstance(params, dict):
-            result = {}
-            charset = self.charset
-            for key, value in params.items():
-                result[smart_str(key, charset)] = smart_str(value, charset)
-            return result
-        else:
-            return tuple([smart_str(p, self.charset, True) for p in params])
+        if not isinstance(params, dict):
+            return tuple(smart_str(p, self.charset, True) for p in params)
+        charset = self.charset
+        return {
+            smart_str(key, charset): smart_str(value, charset)
+            for key, value in params.items()
+        }
 
     def execute(self, sql, params=()):
         try:
@@ -129,15 +128,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             if settings_dict['NAME'] == '':
                 from django.core.exceptions import ImproperlyConfigured
                 raise ImproperlyConfigured("You need to specify NAME in your Django settings file.")
-            conn_string = "dbname=%s" % settings_dict['NAME']
+            conn_string = f"dbname={settings_dict['NAME']}"
             if settings_dict['USER']:
-                conn_string = "user=%s %s" % (settings_dict['USER'], conn_string)
+                conn_string = f"user={settings_dict['USER']} {conn_string}"
             if settings_dict['PASSWORD']:
-                conn_string += " password='%s'" % settings_dict['PASSWORD']
+                conn_string += f" password='{settings_dict['PASSWORD']}'"
             if settings_dict['HOST']:
-                conn_string += " host=%s" % settings_dict['HOST']
+                conn_string += f" host={settings_dict['HOST']}"
             if settings_dict['PORT']:
-                conn_string += " port=%s" % settings_dict['PORT']
+                conn_string += f" port={settings_dict['PORT']}"
             self.connection = Database.connect(conn_string, **settings_dict['OPTIONS'])
             # make transactions transparent to all cursors
             self.connection.set_isolation_level(1)
@@ -148,7 +147,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 cursor.execute("SET TIME ZONE %s", [settings_dict['TIME_ZONE']])
             if not hasattr(self, '_version'):
                 self.__class__._version = get_version(cursor)
-            if self._version[0:2] < (8, 0):
+            if self._version[:2] < (8, 0):
                 # No savepoint support for earlier version of PostgreSQL.
                 self.features.uses_savepoints = False
             cursor.execute("SET client_encoding to 'UNICODE'")
@@ -165,9 +164,7 @@ def typecast_string(s):
     """
     Cast all returned strings to unicode strings.
     """
-    if not s and not isinstance(s, str):
-        return s
-    return smart_unicode(s)
+    return s if not s and not isinstance(s, str) else smart_unicode(s)
 
 # Register these custom typecasts, because Django expects dates/times to be
 # in Python's native (standard-library) datetime/time format, whereas psycopg

@@ -50,15 +50,15 @@ class GeometryField(forms.Field):
 
         # Ensuring that the geometry is of the correct type (indicated
         # using the OGC string label).
-        if str(geom.geom_type).upper() != self.geom_type and not self.geom_type == 'GEOMETRY':
+        if str(geom.geom_type).upper() != self.geom_type != 'GEOMETRY':
             raise forms.ValidationError(self.error_messages['invalid_geom_type'])
 
-        # Transforming the geometry if the SRID was set.
-        if self.srid:
-            if not geom.srid:
+        if not geom.srid:
+            if self.srid:
                 # Should match that of the field if not given.
                 geom.srid = self.srid
-            elif self.srid != -1 and self.srid != geom.srid:
+        elif self.srid not in [-1, geom.srid]:
+            if self.srid:
                 try:
                     geom.transform(self.srid)
                 except:

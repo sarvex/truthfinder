@@ -22,7 +22,7 @@ class GeoSitemapTest(TestCase):
 
     def assertChildNodes(self, elem, expected):
         "Taken from regressiontests/syndication/tests.py."
-        actual = set([n.nodeName for n in elem.childNodes])
+        actual = {n.nodeName for n in elem.childNodes}
         expected = set(expected)
         self.assertEqual(actual, expected)
 
@@ -37,7 +37,7 @@ class GeoSitemapTest(TestCase):
     def test_geositemap_kml(self):
         "Tests KML/KMZ geographic sitemaps."
         for kml_type in ('kml', 'kmz'):
-            doc = minidom.parseString(self.client.get('/sitemaps/%s.xml' % kml_type).content)
+            doc = minidom.parseString(self.client.get(f'/sitemaps/{kml_type}.xml').content)
 
             # Ensuring the right sitemaps namespaces are present.
             urlset = doc.firstChild

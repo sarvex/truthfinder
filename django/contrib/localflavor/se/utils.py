@@ -11,15 +11,12 @@ def id_number_checksum(gd):
         tmp = ((n % 2) and 1 or 2) * int(c)
 
         if tmp > 9:
-            tmp = sum([int(i) for i in str(tmp)])
+            tmp = sum(int(i) for i in str(tmp))
 
         s += tmp
         n += 1
 
-    if (s % 10) == 0:
-        return 0
-
-    return (((s / 10) + 1) * 10) - s
+    return 0 if (s % 10) == 0 else (((s / 10) + 1) * 10) - s
 
 def validate_id_birthday(gd, fix_coordination_number_day=True):
     """
@@ -69,11 +66,7 @@ def format_personal_id_number(birth_day, gd):
     return unicode(str(birth_day.year) + gd['month'] + gd['day'] + gd['serial'] + gd['checksum'])
 
 def format_organisation_number(gd):
-    if gd['century'] is None:
-        century = ''
-    else:
-        century = gd['century']
-
+    century = '' if gd['century'] is None else gd['century']
     return unicode(century + gd['year'] + gd['month'] + gd['day'] + gd['serial'] + gd['checksum'])
 
 def valid_organisation(gd):

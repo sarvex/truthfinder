@@ -74,7 +74,7 @@ def clean(text, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES,
     if not text:
         return u''
     elif text.startswith('<!--'):
-        text = u' ' + text
+        text = f' {text}'
 
     class s(BleachSanitizer):
         allowed_elements = tags
@@ -115,11 +115,7 @@ def linkify(text, nofollow=True, filter_url=identity,
 
     forest = parser.parseFragment(text)
 
-    if nofollow:
-        rel = u' rel="nofollow"'
-    else:
-        rel = u''
-
+    rel = u' rel="nofollow"' if nofollow else u''
     def linkify_nodes(tree, parse_text=True):
         for node in tree.childNodes:
             if node.type == NODE_TEXT and parse_text:
@@ -141,11 +137,7 @@ def linkify(text, nofollow=True, filter_url=identity,
 
     def link_repl(match):
         url = match.group(0)
-        if re.search(proto_re, url):
-            href = url
-        else:
-            href = u''.join(['http://', url])
-
+        href = url if re.search(proto_re, url) else u''.join(['http://', url])
         repl = u'<a href="%s"%s>%s</a>'
 
         return repl % (filter_url(href), rel, filter_text(url))

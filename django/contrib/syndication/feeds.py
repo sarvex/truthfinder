@@ -15,8 +15,10 @@ class Feed(views.Feed):
         self.slug = slug
         self.request = request
         self.feed_url = getattr(self, 'feed_url', None) or request.path
-        self.title_template = self.title_template or ('feeds/%s_title.html' % slug)
-        self.description_template = self.description_template or ('feeds/%s_description.html' % slug)
+        self.title_template = self.title_template or f'feeds/{slug}_title.html'
+        self.description_template = (
+            self.description_template or f'feeds/{slug}_description.html'
+        )
 
     def get_object(self, bits):
         return None
@@ -26,10 +28,7 @@ class Feed(views.Feed):
         Returns a feedgenerator.DefaultFeed object, fully populated, for
         this feed. Raises FeedDoesNotExist for invalid parameters.
         """
-        if url:
-            bits = url.split('/')
-        else:
-            bits = []
+        bits = url.split('/') if url else []
         try:
             obj = self.get_object(bits)
         except ObjectDoesNotExist:

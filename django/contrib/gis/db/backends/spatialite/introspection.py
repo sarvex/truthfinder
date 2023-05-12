@@ -30,8 +30,9 @@ class SpatiaLiteIntrospection(DatabaseIntrospection):
                            (table_name, geo_col))
             row = cursor.fetchone()
             if not row:
-                raise Exception('Could not find a geometry column for "%s"."%s"' %
-                                (table_name, geo_col))
+                raise Exception(
+                    f'Could not find a geometry column for "{table_name}"."{geo_col}"'
+                )
 
             # OGRGeomType does not require GDAL and makes it easy to convert
             # from OGC geom type name to Django field.

@@ -34,7 +34,7 @@ class ExtraFieldLookup(object):
             
     @property
     def index_name(self):
-        return 'idxf_%s_l_%s' % (self.field_name, self.lookup_types[0])
+        return f'idxf_{self.field_name}_l_{self.lookup_types[0]}'
     
     def convert_lookup(self, value, lookup_type):
         # TODO: can value be a list or tuple? (in case of in yes)
@@ -63,9 +63,7 @@ class ExtraFieldLookup(object):
     
     @classmethod
     def matches_lookup_def(cls, lookup_def):
-        if lookup_def in cls.lookup_types:
-            return True
-        return False
+        return lookup_def in cls.lookup_types
     
     def get_field_to_add(self, field_to_index):
         field_to_add = deepcopy(self.field_to_add)
@@ -75,9 +73,10 @@ class ExtraFieldLookup(object):
 
 class DateLookup(ExtraFieldLookup):
     def __init__(self, *args, **kwargs):
-        defaults = {'new_lookup': 'exact',
-                    'field_to_add': models.IntegerField(editable=False, null=True)}
-        defaults.update(kwargs)
+        defaults = {
+            'new_lookup': 'exact',
+            'field_to_add': models.IntegerField(editable=False, null=True),
+        } | kwargs
         ExtraFieldLookup.__init__(self, *args, **defaults)
     
     def _convert_lookup(self, value, lookup_type):
@@ -111,11 +110,12 @@ class Contains(ExtraFieldLookup):
     lookup_types = 'contains'
 
     def __init__(self, *args, **kwargs):
-        defaults = {'new_lookup': 'startswith',
-                    'field_to_add': ListField(models.CharField(500),
-                                              editable=False, null=True)
-        }
-        defaults.update(kwargs)
+        defaults = {
+            'new_lookup': 'startswith',
+            'field_to_add': ListField(
+                models.CharField(500), editable=False, null=True
+            ),
+        } | kwargs
         ExtraFieldLookup.__init__(self, *args, **defaults)
     
     def get_field_to_add(self, field_to_index):
@@ -164,8 +164,7 @@ class Istartswith(ExtraFieldLookup):
     lookup_types = 'istartswith'
     
     def __init__(self, *args, **kwargs):
-        defaults = {'new_lookup': 'startswith'}
-        defaults.update(kwargs)
+        defaults = {'new_lookup': 'startswith'} | kwargs
         ExtraFieldLookup.__init__(self, *args, **defaults)
     
     def _convert_lookup(self, value, lookup_type):
@@ -178,8 +177,7 @@ class Endswith(ExtraFieldLookup):
     lookup_types = 'endswith'
     
     def __init__(self, *args, **kwargs):
-        defaults = {'new_lookup': 'startswith'}
-        defaults.update(kwargs)
+        defaults = {'new_lookup': 'startswith'} | kwargs
         ExtraFieldLookup.__init__(self, *args, **defaults)
     
     def _convert_lookup(self, value, lookup_type):
@@ -201,10 +199,9 @@ class RegexLookup(ExtraFieldLookup):
     lookup_types = ('regex', 'iregex')
     
     def __init__(self, *args, **kwargs):
-        defaults = {'field_to_add': models.NullBooleanField(editable=False,
-                                                            null=True) 
-        }
-        defaults.update(kwargs)
+        defaults = {
+            'field_to_add': models.NullBooleanField(editable=False, null=True)
+        } | kwargs
         ExtraFieldLookup.__init__(self, *args, **defaults)        
     
     def contribute(self, model, field_name, lookup_def):
@@ -215,8 +212,7 @@ class RegexLookup(ExtraFieldLookup):
     
     @property
     def index_name(self):
-        return 'idxf_%s_l_%s' % (self.field_name,
-                                 self.lookup_def.pattern.encode('hex'))
+        return f"idxf_{self.field_name}_l_{self.lookup_def.pattern.encode('hex')}"
 
     def is_icase(self):
         return self.lookup_def.flags & re.I
@@ -225,20 +221,19 @@ class RegexLookup(ExtraFieldLookup):
         return self.new_lookup, True
 
     def _convert_value(self, value):
-        if self.lookup_def.match(value):
-            return True
-        return False
+        return bool(self.lookup_def.match(value))
         
     def matches_filter(self, model, field_name, lookup_type, value):
-        return self.model == model and lookup_type == \
-                '%sregex' % ('i' if self.is_icase() else '') and \
-                value == self.lookup_def.pattern and field_name == self.field_name
+        return (
+            self.model == model
+            and lookup_type == f"{'i' if self.is_icase() else ''}regex"
+            and value == self.lookup_def.pattern
+            and field_name == self.field_name
+        )
     
     @classmethod
     def matches_lookup_def(cls, lookup_def):
-        if isinstance(lookup_def, regex):
-            return True
-        return False 
+        return isinstance(lookup_def, regex) 
 
 class StandardLookup(ExtraFieldLookup):
     ''' Creates a copy of the field_to_index in order to allow querying for 
@@ -248,7 +243,7 @@ class StandardLookup(ExtraFieldLookup):
     
     @property
     def index_name(self):
-        return 'idxf_%s_l_%s' % (self.field_name, 'standard')
+        return f'idxf_{self.field_name}_l_standard'
     
     def convert_lookup(self, value, lookup_type):
         return lookup_type, value

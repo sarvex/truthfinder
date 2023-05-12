@@ -34,7 +34,7 @@ class NLZipCodeField(Field):
         if int(value[:4]) < 1000:
             raise ValidationError(self.error_messages['invalid'])
 
-        return u'%s %s' % (value[:4], value[4:])
+        return f'{value[:4]} {value[4:]}'
 
 class NLProvinceSelect(Select):
     """
@@ -90,9 +90,7 @@ class NLSoFiNumberField(Field):
         if int(value) == 0:
             raise ValidationError(self.error_messages['invalid'])
 
-        checksum = 0
-        for i in range(9, 1, -1):
-            checksum += int(value[9-i]) * i
+        checksum = sum(int(value[9-i]) * i for i in range(9, 1, -1))
         checksum -= int(value[-1])
 
         if checksum % 11 != 0:

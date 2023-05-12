@@ -47,9 +47,7 @@ class GEOSCoordSeq(GEOSBase):
         # Checking the input value
         if isinstance(value, (list, tuple)):
             pass
-        elif numpy and isinstance(value, numpy.ndarray):
-            pass
-        else:
+        elif not numpy or not isinstance(value, numpy.ndarray):
             raise TypeError('Must set coordinate with a sequence (list, tuple, or numpy array).')
         # Checking the dims of the input
         if self.dims == 3 and self._z:
@@ -70,7 +68,7 @@ class GEOSCoordSeq(GEOSBase):
         "Checks the given index."
         sz = self.size
         if (sz < 1) or (index < 0) or (index >= sz):
-            raise GEOSIndexError('invalid GEOS Geometry index: %s' % str(index))
+            raise GEOSIndexError(f'invalid GEOS Geometry index: {str(index)}')
 
     def _checkdim(self, dim):
         "Checks the given dimension."
@@ -143,14 +141,11 @@ class GEOSCoordSeq(GEOSBase):
         "Returns the KML representation for the coordinates."
         # Getting the substitution string depending on whether the coordinates have
         #  a Z dimension.
-        if self.hasz: substr = '%s,%s,%s '
-        else: substr = '%s,%s,0 '
-        return '<coordinates>%s</coordinates>' % \
-            ''.join([substr % self[i] for i in xrange(len(self))]).strip()
+        substr = '%s,%s,%s ' if self.hasz else '%s,%s,0 '
+        return f"<coordinates>{''.join([substr % self[i] for i in xrange(len(self))]).strip()}</coordinates>"
 
     @property
     def tuple(self):
         "Returns a tuple version of this coordinate sequence."
         n = self.size
-        if n == 1: return self[0]
-        else: return tuple([self[i] for i in xrange(n)])
+        return self[0] if n == 1 else tuple(self[i] for i in xrange(n))

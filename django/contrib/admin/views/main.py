@@ -55,10 +55,7 @@ class ChangeList(object):
         if ERROR_FLAG in self.params:
             del self.params[ERROR_FLAG]
 
-        if self.is_popup:
-            self.list_editable = ()
-        else:
-            self.list_editable = list_editable
+        self.list_editable = () if self.is_popup else list_editable
         self.order_field, self.order_type = self.get_ordering()
         self.query = request.GET.get(SEARCH_VAR, '')
         self.query_set = self.get_query_set()
@@ -93,7 +90,7 @@ class ChangeList(object):
                     del p[k]
             else:
                 p[k] = v
-        return '?%s' % urlencode(p)
+        return f'?{urlencode(p)}'
 
     def get_results(self, request):
         paginator = self.model_admin.get_paginator(request, self.query_set, self.list_per_page)
@@ -134,7 +131,11 @@ class ChangeList(object):
         # options, then check the object's default ordering. If neither of
         # those exist, order descending by ID by default. Finally, look for
         # manually-specified ordering from the query string.
-        ordering = self.model_admin.ordering or lookup_opts.ordering or ['-' + lookup_opts.pk.name]
+        ordering = (
+            self.model_admin.ordering
+            or lookup_opts.ordering
+            or [f'-{lookup_opts.pk.name}']
+        )
 
         if ordering[0].startswith('-'):
             order_field, order_type = ordering[0][1:], 'desc'
@@ -199,16 +200,11 @@ class ChangeList(object):
 
             # if key ends with __isnull, special case '' and false
             if key.endswith('__isnull'):
-                if value.lower() in ('', 'false'):
-                    value = False
-                else:
-                    value = True
+                value = value.lower() not in ('', 'false')
                 lookup_params[key] = value
 
             if not self.model_admin.lookup_allowed(key, value):
-                raise SuspiciousOperation(
-                    "Filtering by %s not allowed" % key
-                )
+                raise SuspiciousOperation(f"Filtering by {key} not allowed")
 
         # Apply lookup parameters from the query string.
         try:
@@ -240,18 +236,20 @@ class ChangeList(object):
 
         # Set ordering.
         if self.order_field:
-            qs = qs.order_by('%s%s' % ((self.order_type == 'desc' and '-' or ''), self.order_field))
+            qs = qs.order_by(
+                f"{self.order_type == 'desc' and '-' or ''}{self.order_field}"
+            )
 
         # Apply keyword searches.
         def construct_search(field_name):
             if field_name.startswith('^'):
-                return "%s__istartswith" % field_name[1:]
+                return f"{field_name[1:]}__istartswith"
             elif field_name.startswith('='):
-                return "%s__iexact" % field_name[1:]
+                return f"{field_name[1:]}__iexact"
             elif field_name.startswith('@'):
-                return "%s__search" % field_name[1:]
+                return f"{field_name[1:]}__search"
             else:
-                return "%s__icontains" % field_name
+                return f"{field_name}__icontains"
 
         if self.search_fields and self.query:
             orm_lookups = [construct_search(str(search_field))
@@ -268,10 +266,7 @@ class ChangeList(object):
                         use_distinct = True
                         break
 
-        if use_distinct:
-            return qs.distinct()
-        else:
-            return qs
+        return qs.distinct() if use_distinct else qs
 
     def url_for_result(self, result):
-        return "%s/" % quote(getattr(result, self.pk_attname))
+        return f"{quote(getattr(result, self.pk_attname))}/"

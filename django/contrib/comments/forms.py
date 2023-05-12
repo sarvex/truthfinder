@@ -66,13 +66,12 @@ class CommentSecurityForm(forms.Form):
     def generate_security_data(self):
         """Generate a dict of security data for "initial" data."""
         timestamp = int(time.time())
-        security_dict =   {
-            'content_type'  : str(self.target_object._meta),
-            'object_pk'     : str(self.target_object._get_pk_val()),
-            'timestamp'     : str(timestamp),
-            'security_hash' : self.initial_security_hash(timestamp),
+        return {
+            'content_type': str(self.target_object._meta),
+            'object_pk': str(self.target_object._get_pk_val()),
+            'timestamp': str(timestamp),
+            'security_hash': self.initial_security_hash(timestamp),
         }
-        return security_dict
 
     def initial_security_hash(self, timestamp):
         """
@@ -184,13 +183,24 @@ class CommentDetailsForm(CommentSecurityForm):
         """
         comment = self.cleaned_data["comment"]
         if settings.COMMENTS_ALLOW_PROFANITIES == False:
-            bad_words = [w for w in settings.PROFANITIES_LIST if w in comment.lower()]
-            if bad_words:
+            if bad_words := [
+                w for w in settings.PROFANITIES_LIST if w in comment.lower()
+            ]:
                 plural = len(bad_words) > 1
-                raise forms.ValidationError(ungettext(
-                    "Watch your mouth! The word %s is not allowed here.",
-                    "Watch your mouth! The words %s are not allowed here.", plural) % \
-                    get_text_list(['"%s%s%s"' % (i[0], '-'*(len(i)-2), i[-1]) for i in bad_words], 'and'))
+                raise forms.ValidationError(
+                    ungettext(
+                        "Watch your mouth! The word %s is not allowed here.",
+                        "Watch your mouth! The words %s are not allowed here.",
+                        plural,
+                    )
+                    % get_text_list(
+                        [
+                            f""""{i[0]}{'-' * (len(i) - 2)}{i[-1]}\""""
+                            for i in bad_words
+                        ],
+                        'and',
+                    )
+                )
         return comment
 
 class CommentForm(CommentDetailsForm):
